@@ -466,7 +466,7 @@ b.up{color:var(--pos)}
   .kpi .v{font-size:21px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-.upf{display:flex;flex-direction:column;gap:16px}
+.upf{display:flex;flex-direction:column;gap:26px}
 .up-row{display:grid;grid-template-columns:130px minmax(0,1fr) 160px;gap:16px;align-items:center;font-size:12.5px}
 .up-row .who{font-weight:600;display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .up-track{position:relative;display:flex;gap:2px;height:28px;background:var(--field);border-radius:8px}
@@ -474,7 +474,6 @@ b.up{color:var(--pos)}
 .up-seg:first-child{border-radius:8px 0 0 8px}
 .up-mark{position:absolute;top:-5px;bottom:-5px;width:2px;margin-left:-1px;background:var(--ink);border-radius:1px}
 .up-mark span{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:10.5px;color:var(--muted);white-space:nowrap}
-.up-row:not(:first-child) .up-mark span{display:none}
 .up-empty{align-self:center;padding-left:10px;color:var(--muted);font-size:11.5px}
 .up-v{text-align:right;display:flex;flex-direction:column;line-height:1.35}
 .up-v b{font-family:var(--fd);font-size:16px;font-weight:650}
@@ -2375,10 +2374,10 @@ function renderUpfront(){
   document.getElementById('s-up').innerHTML = U.map(o=>{ const left=o.have-o.need;
     const segs = o.segs.filter(sg=>sg[1]>0).map(([l,v,a])=>`<div class="up-seg" style="width:${(v/max*100).toFixed(2)}%;background:${hexA(css(COL[o.k]),a)}" title="${l}: ${F$(v)}">${v/max>0.11?esc(l)+' '+M$(v):v/max>0.05?M$(v):''}</div>`).join('') || `<span class="up-empty">No purchase${o.k==='rent'?'; everything stays invested':''}</span>`;
     return `<div class="up-row"><span class="who"><i class="sq" style="background:var(${COL[o.k]})"></i>${N[o.k]}</span>
-      <div class="up-track">${segs}<div class="up-mark" style="left:${(o.have/max*100).toFixed(2)}%"><span>${o.when?'Available '+o.when:'Available today'}</span></div></div>
+      <div class="up-track">${segs}<div class="up-mark" style="left:${(o.have/max*100).toFixed(2)}%"><span>${M$(o.have)} available ${o.when||'today'}</span></div></div>
       <div class="up-v"><b>${XK(o.x,M$(o.need))}</b><span class="${left<0?'neg':''}">${left<0?'Short '+M$(-left):'Leaves '+M$(left)}${o.when?' · '+o.when:''}</span></div></div>`; }).join('');
   const v=U[2], notes=[];
-  notes.push('Bars are the cash each path needs on day one; the line is the cash + brokerage you have then. Retirement isn’t counted.');
+  notes.push('Bars are the cash each path needs; the white line is the cash + brokerage you’d have at that moment (today for Rent, the purchase month for Buy and Van). Retirement isn’t counted.');
   if(v.fin>0) notes.push(`<b>${F$(v.fin)}</b> of the van is financed and paid monthly instead.`);
   if(p.carSale>0) notes.push(`The van line’s available cash includes <b>${F$(p.carSale)}</b> from selling a car.`);
   notes.push(`The van comes back as about <b>${M$(p.vanPrice*p.vanResale/100)}</b> when you sell it; closing costs don’t come back, and the down payment comes back only as equity when you sell.`);
