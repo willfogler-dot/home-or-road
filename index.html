@@ -1667,6 +1667,7 @@ function renderAddPanel(el){
   const u=document.getElementById('h-url');
   u.addEventListener('input',()=>{ ADD.url=u.value; const q=ADD.url?parseListingUrl(ADD.url):null; document.getElementById('h-urlprev').innerHTML = q?`${q.address?esc(q.address)+' · ':''}${esc(q.source)}`:ADD.url?'<span style="color:var(--neg)">That doesn’t look like a link</span>':''; });
   const t=document.getElementById('h-text');
+  if(t) t.addEventListener('paste',e=>{ const txt=(e.clipboardData&&e.clipboardData.getData('text'))||''; if(!SAMPLE && looksLikeListing(txt)){ e.preventDefault(); quickAdd(txt); } });
   if(t) t.addEventListener('input',()=>{ ADD.text=t.value; const ok=ADD.text.trim().length>40||(!!SAMPLE&&!!ADD.img); const b=document.getElementById('h-read'); if(b) b.disabled=!ok; const m=el.querySelector('.add-foot .msg'); if(m&&!ADD.err) m.textContent = ok?'Ready.':'Paste the listing text'+(SAMPLE_IMG?' or add a screenshot':'')+' to fill in the details.'; });
   const d=document.getElementById('h-drop'), fi=document.getElementById('h-file');
   d.addEventListener('dragover',e=>{ e.preventDefault(); d.classList.add('over'); });
@@ -1685,10 +1686,27 @@ function renderAddPanel(el){
   document.getElementById('h-manual').onclick=()=>{ const q=ADD.url?parseListingUrl(ADD.url):null; ADD.form={url:q?q.url:'', source:q?q.source:'', address:q?q.address:'', price:null}; ADD.err=''; renderAddPanel(); };
 }
 document.addEventListener('paste',e=>{
+  // Homes tab, nothing open: a pasted link starts an add; a pasted listing page goes straight to review
+  if(TAB==='homes' && !MODAL && !PLACE){
+    const txt=(e.clipboardData&&e.clipboardData.getData('text'))||'';
+    if(/^https?:\/\/\S+$/.test(txt.trim())){ e.preventDefault(); ADD.form=null; ADD.err=''; ADD.text=''; ADD.url=txt.trim(); openModal({type:'add'}); return; }
+    if(looksLikeListing(txt)){ e.preventDefault(); quickAdd(txt); return; }
+  }
   if(!MODAL||MODAL.type!=='add'||ADD.form||!SAMPLE_IMG) return;
   const f=[...(e.clipboardData&&e.clipboardData.files||[])].find(x=>/^image\//.test(x.type));
   if(f){ e.preventDefault(); ADD.img=f; renderAddPanel(); }
 });
+function addressFromText(txt){
+  const m=String(txt).match(/(\d{1,6}\s+[A-Za-z0-9 .#'-]{3,60}?),\s*([A-Za-z .'-]{2,40}?),\s*(CO|Colorado)\s*(\d{5})/);
+  return m ? `${m[1].trim()}, ${m[2].trim()}, CO ${m[4]}` : '';
+}
+function looksLikeListing(txt){ return txt.length>150 && /\$\s?\d{2,3},\d{3}/.test(txt) && /\b(bd|bds|beds?|bedrooms?)\b/i.test(txt); }
+function quickAdd(txt){
+  const q=ADD.url?parseListingUrl(ADD.url):null, r=parseListingText(txt);
+  ADD.text=txt; ADD.err=Object.keys(r).length?'':'Couldn\u2019t find listing details in that. Fill them in below.';
+  ADD.form=Object.assign({url:q?q.url:'', source:q?q.source:'', address:(q&&q.address)||addressFromText(txt), price:null, notes:''}, r);
+  if(MODAL&&MODAL.type==='add') renderAddPanel(); else openModal({type:'add'});
+}
 function parseListingText(txt){
   const t=' '+txt.replace(/\u00a0/g,' ').replace(/[ \t]+/g,' ')+' ';
   const money=x=>+String(x).replace(/[^0-9.]/g,'');
@@ -1845,11 +1863,11 @@ function renderHomes(){
   const th=document.getElementById('h-thesis'), le=document.getElementById('h-lede');
   if(!stats.length){
     th.innerHTML = `Save the homes you're looking at and see what each one does to your plan.`;
-    le.textContent = `Add a home from a Zillow or Redfin listing. Each one gets a pin on the map, its own monthly cost, a cash-to-close check and a ${H}-year outlook against ${N.rent==='Rent'?'renting':N.rent}.`;
+    le.textContent = `Copy a whole Zillow or Redfin listing page (Ctrl+A, then Ctrl+C) and press Ctrl+V anywhere on this tab. Each one gets a pin on the map, its own monthly cost, a cash-to-close check and a ${H}-year outlook against ${N.rent==='Rent'?'renting':N.rent}.`;
   } else {
     const best=stats.slice().sort((x,y)=>y.s.gap-x.s.gap)[0], wins=stats.filter(x=>x.s.gap>=0).length;
     th.innerHTML = `${stats.length} home${stats.length>1?'s':''} saved. ${hl('buy',esc((best.h.address||'Untitled').split(',')[0]))} fits best: ${hl('buy',F$(best.s.housing)+'/mo')} all-in and ${signHl(best.s.gap,S$(best.s.gap))} vs. the rent path by ${E}.`;
-    le.textContent = `${wins} of ${stats.length} beat the rent path over ${H} years at ${p.app}% a year of home value growth. Click a pin or a row for the full profile.`;
+    le.textContent = `${wins} of ${stats.length} beat the rent path over ${H} years at ${p.app}% a year of home value growth. To add one, copy a listing page (Ctrl+A, Ctrl+C) and press Ctrl+V here.`;
   }
   document.getElementById('h-addbtn').onclick=()=>{ ADD.form=null; ADD.err=''; openModal({type:'add'}); };
   bindMap(); drawMap(!MAP_READY);
