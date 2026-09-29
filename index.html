@@ -1652,11 +1652,11 @@ function renderBuy(){
   cr.push(['Net cost of owning',f.housing-f.taxBen,'var(--buy)','total','bx'],['Rent today',p.rent,'var(--rent)','total','in:rent']);
   hbars(document.getElementById('b-month'),cr,{fmt:v=>(v<0?'−':'')+F$(Math.abs(v))});
   document.getElementById('b-lg1').innerHTML = `<span><i class="sq" style="background:var(--buy)"></i>Home value</span><span><i class="sq" style="background:var(--muted)"></i>Loan balance</span>`;
-  document.getElementById('b-eq-sub').textContent = REAL ? `Today's dollars (${p.app}%/yr growth minus ${p.infl}% inflation) · the gap is your equity` : 'Future dollars · the gap is your equity';
+  document.getElementById('b-eq-sub').textContent = `Actual dollars at ${p.app}%/yr growth · the gap is your equity`;
   const o=baseOpts(XM(0),XM(b.M),H>12?2:1); o.scales.y.min=0;
   chart('c-b-eq',{type:'line',data:{datasets:[
-    lineDS('Home value',css('--buy'),b.all.map(s=>({x:XM(s.m),y:B(p,s.home,s.m)})),{fill:'+1',backgroundColor:hexA(css('--buy'),.14)}),
-    lineDS('Loan balance',css('--muted'),b.all.map(s=>({x:XM(s.m),y:B(p,s.mort,s.m)})),{borderDash:[5,4],borderWidth:1.75})]},options:o});
+    lineDS('Home value',css('--buy'),b.all.filter(s=>s.home>0).map(s=>({x:XM(s.m),y:s.home})),{fill:'+1',backgroundColor:hexA(css('--buy'),.14)}),
+    lineDS('Loan balance',css('--muted'),b.all.filter(s=>s.home>0).map(s=>({x:XM(s.m),y:s.mort})),{borderDash:[5,4],borderWidth:1.75})]},options:o});
   // sensitivity
   const mx=Math.max(1,...A.bSens.flat().map(Math.abs)), win=A.bSens.flat().filter(v=>v>=0).length;
   document.getElementById('b-sens-sum').textContent = `Buying beats the rent path in ${win} of 25 combinations of appreciation and rate`;
