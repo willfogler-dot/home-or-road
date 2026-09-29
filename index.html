@@ -843,8 +843,22 @@ function renderSignin(body){
 }
 
 /* =================== config + state =================== */
-const T0 = new Date(), T0Y = T0.getFullYear(), T0M = T0.getMonth(), STUB = T0M===0 ? 0 : 12-T0M;
-const START_YEAR = T0M===0 ? T0Y : T0Y+1;   // first full calendar year; month 0 = this month
+// The projection starts on the date your balances are "as of" (P.asOf, set when Savings is saved; blank = today).
+// Month 0 is that month, prorated to the days left in it. "Today" is tracked live and marked on charts.
+const pad2 = n => String(n).padStart(2,'0');
+const todayISO = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
+const parseISO = v => { const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||'')); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; };
+const fmtDay = d => d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric'});
+let T0Y, T0M, T0D, STUB, START_YEAR, M0F;
+function setClock(p){
+  const a = parseISO(p&&p.asOf) || parseISO(todayISO());
+  T0Y=a.getFullYear(); T0M=a.getMonth(); T0D=a.getDate();
+  const dim=new Date(T0Y,T0M+1,0).getDate(); M0F=(dim-T0D+1)/dim;
+  STUB = T0M===0 ? 0 : 12-T0M; START_YEAR = T0M===0 ? T0Y : T0Y+1;
+}
+setClock(null);
+function todayIdx(){ const d=new Date(), dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); return (d.getFullYear()-T0Y)*12 + d.getMonth()-T0M + (d.getDate()-1)/dim; }
+const asOfDate = () => parseISO(P.asOf) || parseISO(todayISO());
 const XM = m => T0Y + (T0M+m)/12, calY = m => Math.floor((T0M+m)/12), yrOfM = m => new Date(T0Y, T0M+m, 1).getFullYear();
 function ymIdx(v){ const [y,mo]=String(v||'').split('-').map(Number); if(!y||!mo) return null; return Math.max(0,(y-T0Y)*12+(mo-1)-T0M+1); }   // index of the month after v
 const leIdx = p => ymIdx(p.leaseEnd) ?? 0;
@@ -925,7 +939,7 @@ const DEFAULTS = {after:'rent', pp:{}}, UNIT = {}, LABEL = {};
 Object.values(BOXES).forEach(b=>b.fields.forEach(([id,l,d,u])=>{
   LABEL[id]=l; if(u==='sel') return; UNIT[id]=u;
   if(Array.isArray(d)){ DEFAULTS.pp[id]=d.slice(); DEFAULTS[id]=d[0]+d[1]; } else DEFAULTS[id]=d; }));
-DEFAULTS.activeHome='';
+DEFAULTS.activeHome=''; DEFAULTS.asOf='';
 const clone = o => JSON.parse(JSON.stringify(o));
 const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} } };
 
@@ -1092,6 +1106,7 @@ function run(kind, p){
         }
       } else r.rent = rentAt(m);
     }
+    if(m===0 && M0F<1) ['bank','bdd','redir','contrib','rent','pi','interest','pt','hins','maint','hoa','util','pmi','car','ins','other','road','vanLoan','side','taxBen'].forEach(k=>{ r[k]*=M0F; });   // first month: only the days left
     r.housing = r.rent+r.pi+r.pt+r.hins+r.maint+r.hoa+r.util+r.pmi;
     r.living = r.car+r.ins+r.other;
     if((T0M+m)%12===0 && m>0){ taxPend+=taxCur; taxCur=0; }
@@ -1142,6 +1157,7 @@ function beAppFor(p, iters){
   return (lo+hi)/2;
 }
 function computeAll(p){
+  setClock(p);
   const R={rent:run('rent',p), buy:run('buy',p), van:run('van',p)};
   const pd=downside(p), pu=upside(p);
   const D={rent:run('rent',pd), buy:run('buy',pd), van:run('van',pd)};
@@ -1230,6 +1246,10 @@ Chart.register({id:'roadBand',beforeDatasetsDraw(ch,a,o){
   const x0=Math.max(c.left,x.getPixelForValue(o.from??START_YEAR)), x1=Math.min(x.getPixelForValue(o.to),c.right);
   ctx.save(); ctx.fillStyle=o.color; ctx.fillRect(x0,c.top,Math.max(0,x1-x0),c.bottom-c.top);
   ctx.fillStyle=o.text; ctx.font='600 10.5px Inter, system-ui, sans-serif'; ctx.fillText((o.label||'ON THE ROAD'),x0+8,c.top+14); ctx.restore(); }});
+Chart.register({id:'todayLine',beforeDatasetsDraw(ch,a,o){
+  if(!o||o.x==null) return; const {ctx,chartArea:c,scales:{x}}=ch; const px=x.getPixelForValue(o.x); if(px<c.left+2||px>c.right) return;
+  ctx.save(); ctx.strokeStyle=o.color; ctx.lineWidth=1; ctx.setLineDash([2,3]); ctx.beginPath(); ctx.moveTo(px,c.top); ctx.lineTo(px,c.bottom); ctx.stroke();
+  ctx.setLineDash([]); ctx.fillStyle=o.color; ctx.font='600 10px Inter, system-ui, sans-serif'; ctx.textAlign='center'; ctx.fillText('TODAY',px,c.bottom-6); ctx.restore(); }});
 Chart.register({id:'crosshair',afterDatasetsDraw(ch,a,o){
   if(!o||!o.color) return; const act=ch.tooltip&&ch.tooltip.getActiveElements(); if(!act||!act.length) return;
   const {ctx,chartArea:c}=ch, x=act[0].element.x; ctx.save(); ctx.strokeStyle=o.color; ctx.lineWidth=1; ctx.setLineDash([3,3]);
@@ -1246,7 +1266,7 @@ function baseOpts(xMin,xMax,step){
     layout:{padding:{top:6,right:8}},
     scales:{x:{type:'linear',min:xMin,max:xMax,afterBuildTicks:abt,ticks:{stepSize:step||1,color:css('--muted'),font:FONT,callback:v=>Number.isInteger(v)?String(v):''},grid:{display:false},border:{color:css('--line-2')}},
             y:{ticks:{color:css('--muted'),font:FONT,callback:v=>M$(v,1),maxTicksLimit:6,padding:8},grid:{color:c=>c.tick.value===0?css('--line-2'):css('--grid'),drawTicks:false},border:{display:false}}},
-    plugins:{legend:{display:false}, crosshair:{color:css('--line-2')},
+    plugins:{legend:{display:false}, crosshair:{color:css('--line-2')}, todayLine:{x:XM(todayIdx()), color:css('--ink-2')},
       tooltip:{backgroundColor:css('--card-2'),titleColor:css('--ink'),bodyColor:css('--ink-2'),borderColor:css('--line-2'),borderWidth:1,padding:12,boxPadding:5,usePointStyle:true,cornerRadius:10,
         titleFont:{...FONT,size:12,weight:'600'},bodyFont:{...FONT,size:12},
         callbacks:{title:i=>{const t=i[0].parsed.x;const yr=Math.floor(t+1e-6),mo=Math.round((t-yr)*12);return new Date(yr,mo,1).toLocaleString('en-US',{month:'short',year:'numeric'});},
@@ -1303,6 +1323,8 @@ function renderSummary(){
   const al=[];
   if(PLAN_REF && LOCAL_DIFFERS && !READONLY) al.push(alertHTML('warn',`<b>This browser has numbers that differ from the shared plan.</b> The shared plan is showing.<button data-go="inputs">Review on Assumptions</button>`));
   const ex=[0,1].map(w=>Object.keys(DEFAULTS.pp).filter(k=>P.pp[k][w]===DEFAULTS.pp[k][w]).length);
+  const age=Math.floor((parseISO(todayISO())-asOfDate())/864e5);
+  if(age>31) al.push(alertHTML('warn',`<b>Your balances are ${age} days old</b> (as of ${fmtDay(asOfDate())}). The projection starts from that date. Update Savings to start from today.<button data-go="inputs">Update balances</button>`));
   if(ex[1]>=6||ex[0]>=6) al.push(alertHTML('warn',`<b>${ex[1]>=6?"Megan's":"Will's"} numbers are still the examples.</b> Results will move once they're entered.<button data-go="inputs">Enter numbers</button>`));
   ks.forEach(k=>{ if(R[k].firstNeg) al.push(alertHTML('bad',`<b>${N[k]}: ${liqStatus(R[k]).txt.toLowerCase().replace(/^./,c=>c.toUpperCase())}.</b> Until that's fixed, the result assumes you borrow the shortfall.<button data-go="${k}">See why</button>`)); });
   const sa=document.getElementById('s-alerts'); sa.innerHTML=al.join(''); sa.style.display=al.length?'flex':'none'; sa.style.flexDirection='column'; sa.style.gap='8px';
@@ -1672,7 +1694,7 @@ function inpHTML(id,val,who){
 }
 function headTotal(bid){
   const p=P;
-  if(bid==='box-savings') return `Liquid <b>${F$(p.cash+p.brok)}</b> · Total <b>${F$(p.cash+p.brok+p.retire)}</b>`;
+  if(bid==='box-savings') return `As of <b>${fmtDay(asOfDate())}</b> · Liquid <b>${F$(p.cash+p.brok)}</b> · Total <b>${F$(p.cash+p.brok+p.retire)}</b>`;
   if(bid==='box-income') return `Take-home <b>${F$(p.bank)}</b>/mo · Invested <b>${F$(p.bdd+p.contrib/12)}</b>/mo`;
   if(bid==='box-exp') return `<b>${F$(livingOf(p))}</b>/mo plus housing`;
   if(bid==='box-lease') return `Paths start <b id="lt-start">${mon(tIdx(p))}</b>`;
@@ -1723,7 +1745,7 @@ function renderBox(bid){
     const a=btn.dataset.act;
     if(a==='edit'){ EDIT[bid]=clone(P); renderBox(bid); const f=el.querySelector('input'); if(f) f.focus(); }
     if(a==='cancel'){ P=EDIT[bid]; delete EDIT[bid]; renderBox(bid); recompute(); if(REMOTE_WAITING&&!Object.keys(EDIT).length){ const st=REMOTE_WAITING; REMOTE_WAITING=null; applyRemote(st); } }
-    if(a==='save'){ delete EDIT[bid]; REMOTE_WAITING=null; commit(); renderBox(bid); recompute(); }
+    if(a==='save'){ delete EDIT[bid]; REMOTE_WAITING=null; if(bid==='box-savings') P.asOf=todayISO(); commit(); renderBox(bid); recompute(); }
   });
   const sel=el.querySelector('select[data-sel]'); if(sel){ sel.value=P.after; sel.onchange=()=>{P.after=sel.value; recompute();}; }
   el.querySelectorAll('input[data-id]').forEach(inp=>{
@@ -2130,7 +2152,7 @@ function homeAction(act,id){
 function renderNav(){
   const p=A.p, N=NAME(p);
   ['rent','buy','van'].forEach(k=>{ document.querySelector(`[data-nv="${k}"]`).textContent=M$(B(p,A.R[k].end.nw,A.R[k].end.m)); document.querySelector(`[data-nm="${k}"]`).textContent=N[k]; });
-  document.getElementById('meta').innerHTML = `Projection from ${mon(0)}<br>Net worth shown at end of ${START_YEAR+A.R.rent.H-1}`;
+  document.getElementById('meta').innerHTML = `Today ${fmtDay(new Date())} · balances as of ${fmtDay(asOfDate())}<br>Net worth shown at end of ${START_YEAR+A.R.rent.H-1}`;
 }
 function recompute(){ A=computeAll(P); if(!Object.keys(EDIT).length) save(); renderNav(); renderHomesNav(); renderTab(); if(XSTACK.length) renderX(); }
 let _t=null; function recomputeSoon(){ clearTimeout(_t); _t=setTimeout(recompute,120); }
@@ -2207,7 +2229,7 @@ function cfData(){
   const run=A.R[CF.k]; let cols;
   if(CF.per==='y') cols=run.years.map(yr=>({h:String(yr.year), ph:yr.stub?`${yr.n} mo`:'', idx:Array.from({length:yr.n},(_,j)=>yr.m0+j)}));
   else { const yr=run.years.find(y=>y.year===CF.yr)||run.years[0]; CF.yr=yr.year;
-    cols=Array.from({length:yr.n},(_,j)=>{ const i=yr.m0+j; return {h:new Date(T0Y,T0M+i,1).toLocaleString('en-US',{month:'short'}), ph:phaseOf(run,i), act:i===run.T||i===run.LE, idx:[i]}; });
+    cols=Array.from({length:yr.n},(_,j)=>{ const i=yr.m0+j; return {h:new Date(T0Y,T0M+i,1).toLocaleString('en-US',{month:'short'}), ph:phaseOf(run,i)+(Math.floor(todayIdx())===i?' · today':''), act:Math.floor(todayIdx())===i||i===run.T||i===run.LE, idx:[i]}; });
     cols.push({h:`${yr.year} total`, ph:'', idx:Array.from({length:yr.n},(_,j)=>yr.m0+j), tot:true}); }
   const lines=cfLines(run);
   const val=(o,c)=> o.bal ? o.fn(run.months[c.idx[c.idx.length-1]], c.idx[c.idx.length-1]) : c.idx.reduce((a,i)=>a+o.fn(run.months[i],i),0);
@@ -2805,6 +2827,12 @@ document.addEventListener('mouseover', ev=>{
 });
 document.addEventListener('mouseout', ev=>{ const x=ev.target.closest&&ev.target.closest('[data-x]'); if(x && !x.contains(ev.relatedTarget)){ clearTimeout(tipT); xtip.hidden=true; } });
 window.addEventListener('scroll', ()=>{ xtip.hidden=true; }, {passive:true});
+
+let DAY=todayISO();
+function tick(){ if(todayISO()!==DAY){ DAY=todayISO(); if(A){ recompute(); } } }
+setInterval(tick, 60000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) tick(); });
+window.addEventListener('focus', tick);
 
 setBasis(REAL);
 A=computeAll(P); renderNav(); setSync();
