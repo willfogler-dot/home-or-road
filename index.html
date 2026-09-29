@@ -554,6 +554,18 @@ table.nw-t{width:100%;font-size:13px}
 .ef-r .v{font-weight:600;font-size:13px;white-space:nowrap} .ef-r .v small{font-weight:400;color:var(--muted);font-size:11.5px}
 .ef-r .inp{width:150px;flex:none;height:32px}
 .cf tr.memo td{color:var(--muted);font-style:italic;font-size:12px}
+/* home equity card */
+.eqc{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:24px;align-items:start}
+.eqc-big{font-family:var(--fd);font-size:36px;font-weight:650;letter-spacing:-.035em;line-height:1.05}
+.eqc-cap{font-size:12px;color:var(--muted);margin-bottom:4px}
+.eqc-lines{margin-top:14px;border-top:1px solid var(--line);font-size:12.5px}
+.eqc-lines div{display:grid;grid-template-columns:18px 1fr auto;gap:8px;padding:7px 0;border-bottom:1px solid var(--grid)}
+.eqc-lines .op{color:var(--muted);font-weight:700;text-align:center} .eqc-lines .v{font-weight:600;text-align:right}
+.eqc-lines .tot{font-weight:700} .eqc-lines .tot .v{font-weight:700}
+.eqc-t{font-size:10.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.eqc .sens td,.eqc .sens th{padding:8px 6px;font-size:12px}
+.cseg{cursor:pointer} .cseg:hover{filter:brightness(1.08)}
+@media (max-width:900px){ .eqc{grid-template-columns:1fr} }
 /* show the math */
 .x{cursor:pointer;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,currentColor 45%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px;border-radius:4px;transition:background .12s,text-decoration-color .12s;outline-offset:2px}
 .x:hover,.x:focus-visible{background:var(--field);text-decoration-color:currentColor}
@@ -809,6 +821,10 @@ thead th{position:sticky;top:0;z-index:1}
         <div class="legend" id="b-lg1"></div>
         <div class="card-b"><div class="chart sm"><canvas id="c-b-eq"></canvas></div></div></div>
     </div>
+    <div class="card"><div class="card-h"><h2>Home equity</h2><span class="sub" id="b-eqc-sub"></span></div>
+      <div class="card-b eqc"><div class="eqc-l" id="b-eqc-main"></div>
+        <div class="eqc-r"><div class="eqc-t">What moves it · end of <span id="b-eqc-e"></span></div><div class="tw"><table class="sens" id="b-eqc-grid"></table></div>
+          <div class="eqc-t" style="margin-top:14px">Purchase price</div><div class="tw"><table class="sens" id="b-eqc-price"></table></div></div></div></div>
     <div class="details-h"><h3>Details</h3></div>
     <div class="drawers">
       <details class="drawer" data-d="b-sens"><summary><div><b>Sensitivity</b><span id="b-sens-sum"></span></div><i class="chev"></i></summary>
@@ -1125,7 +1141,7 @@ function save(){ store.set('homeOrRoad.v3', JSON.stringify(Object.assign({}, P, 
 let DB=null, PLAN_REF=null, HOUSES_COL=null, READONLY=false, SEEDED=false, WRITING=false, AGAIN=false, REMOTE_WAITING=null, SHARED_READY=false, LOCAL_DIFFERS=false;
 // Bump APP_VER whenever the saved plan's shape or the model changes. A tab running older code reloads
 // instead of saving over a plan written by newer code (that is how the as-of date got wiped).
-const APP_VER = 15; let REMOTE_VER = 0;
+const APP_VER = 16; let REMOTE_VER = 0;
 function stateOf(q){ return Object.assign(clone(q), {v4:true, appVer:APP_VER}); }
 function commit(){ save(); if(PLAN_REF && !READONLY) writePlan(); }
 async function writePlan(){
@@ -1337,11 +1353,14 @@ function computeAll(p){
   const beApp = beAppFor(p);
   const appRows=[p.app-3,p.app-1.5,p.app,p.app+1.5,p.app+3].map(v=>Math.round(v*100)/100);
   const rateCols=[p.rate-1,p.rate-0.5,p.rate,p.rate+0.5,p.rate+1].map(v=>Math.round(v*1000)/1000);
-  const bSens=appRows.map(a=>rateCols.map(rt=>{ const q=variant(p,{app:a,rate:rt}); return run('buy',q).end.nw - run('rent',q).end.nw; }));
+  const bSens=[], eqSens=[];
+  appRows.forEach(a=>{ const rb=[], re=[]; rateCols.forEach(rt=>{ const q=variant(p,{app:a,rate:rt}), nb=run('buy',q); rb.push(nb.end.nw - run('rent',q).end.nw); re.push(nb.end.equity); }); bSens.push(rb); eqSens.push(re); });
+  const priceCols=[-100000,-50000,0,50000,100000].map(d=>Math.max(100000,p.price+d));
+  const eqPrice=priceCols.map(pr=>run('buy',variant(p,{price:pr})).end.equity);
   const tripRows=[...new Set([1,1.5,2,3,p.roadYears])].sort((a,b)=>a-b);
   const payCols=[...new Set([75,90,100,110,p.returnPct])].sort((a,b)=>a-b);
   const vSens=tripRows.map(t=>payCols.map(pc=>run('van',variant(p,{roadYears:t,returnPct:pc})).end.nw - R.rent.end.nw));
-  const A={p,R,D,U,be,beApp,appRows,rateCols,bSens,tripRows,payCols,vSens};
+  const A={p,R,D,U,be,beApp,appRows,rateCols,bSens,eqSens,priceCols,eqPrice,tripRows,payCols,vSens};
   const v=R.van;
   const trip=v.months.filter(x=>x.onRoad);
   A.vanOOP = trip.reduce((a,x)=>a+TODAY(p,x.road+x.vanLoan-x.side,x.m-1),0) + TODAY(p,v.vanCashIn,v.vS) - TODAY(p,v.vanSaleNet,v.vS+v.roadM);
@@ -1606,7 +1625,8 @@ function renderInvestments(){
   const parts=[['cash','Cash','--c-cash'],['brok','Brokerage','--c-brok'],['retire','Retirement','--c-ret'],['equity','Home equity','--c-eq'],['van','Van','--c-van']];
   document.getElementById('s-comp-sub').textContent = `End of ${E}`;
   document.getElementById('s-comp').innerHTML = ks.map(k=>{ const e=R[k].end, vals=parts.map(([key])=>Math.max(0,B(p,key==='van'?e.van-e.vanBal:e[key],e.m))), tot=vals.reduce((a,x)=>a+x,0)||1;
-    return `<div class="comp-row"><span class="who"><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</span><div class="cbar">${parts.map(([key,l,c],i)=>vals[i]>0?`<div style="flex:${vals[i]/tot} 1 0;background:var(${c});${c==='--c-cash'?'color:#1b2440':''}" title="${l}: ${M$(vals[i])}">${vals[i]/tot>0.11?M$(vals[i]):''}</div>`:'').join('')}</div><span class="tot">${M$(B(p,e.nw,e.m))}</span></div>`; }).join('');
+    return `<div class="comp-row"><span class="who"><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</span><div class="cbar">${parts.map(([key,l,c],i)=>{ if(!(vals[i]>0)) return ''; const sh=vals[i]/tot, lab=sh>0.05||key==='equity', x={cash:'endC:'+k,brok:'endB:'+k,retire:'endR:'+k,equity:`eq:${k}:${R[k].M}`}[key];
+      return `<div${x?` data-x="${x}" tabindex="0"`:''} class="${x?'cseg':''}" style="flex:${sh} 1 0;${lab?'min-width:58px;':''}background:var(${c});${c==='--c-cash'?'color:#1b2440':''}" title="${l}: ${M$(vals[i])}">${lab?M$(vals[i]):''}</div>`; }).join('')}</div><span class="tot">${M$(B(p,e.nw,e.m))}</span></div>`; }).join('');
   document.getElementById('s-comp-lg').innerHTML = parts.map(([k,l,c])=>`<span><i class="sq" style="background:var(${c})"></i>${l}</span>`).join('') + (ks.some(k=>R[k].end.brok<0)?'<span style="color:var(--neg)">A negative brokerage balance means borrowing; it is netted out of the total.</span>':'');
 }
 
@@ -1782,6 +1802,18 @@ function renderBuy(){
   chart('c-b-eq',{type:'line',data:{datasets:[
     lineDS('Home value',css('--buy'),b.all.filter(s=>s.home>0).map(s=>({x:XM(s.m),y:s.home})),{fill:'+1',backgroundColor:hexA(css('--buy'),.14)}),
     lineDS('Loan balance',css('--muted'),b.all.filter(s=>s.home>0).map(s=>({x:XM(s.m),y:s.mort})),{borderDash:[5,4],borderWidth:1.75})]},options:o});
+  // home equity card
+  { const e=b.end, sellC=e.home*p.sell/100, paid=b.loan0-e.mort, gain=e.home-b.price0, eqB=B(p,e.equity,e.m);
+    document.getElementById('b-eqc-sub').textContent = `End of ${E}, ${DOL()} · after selling costs`;
+    document.getElementById('b-eqc-e').textContent = E;
+    const L=(op,l,v,cls,x)=>`<div class="${cls||''}"><span class="op">${op}</span><span>${l}</span><span class="v">${x?XK(x,F$(v)):F$(v)}</span></div>`;
+    document.getElementById('b-eqc-main').innerHTML = `<div class="eqc-cap">Home equity if you sold at the end of ${E}</div><div class="eqc-big">${XK(`eq:buy:${b.M}`,M$(eqB))}</div>
+      <div class="eqc-lines">${L('','Down payment',b.down0,'','cl:buy')}${L('+','Principal paid down',paid,'','pi:buy')}${L(gain<0?'−':'+',`Home value growth (${p.app}%/yr)`,Math.abs(gain),'','in:app')}${L('−',`Selling costs (${p.sell}%)`,sellC,'','in:sell')}${L('=','Equity, actual dollars',e.equity,'tot')}${REAL?L('','In today’s dollars',eqB,'tot'):''}</div>`;
+    const emx=Math.max(1,...A.eqSens.flat().map(Math.abs));
+    document.getElementById('b-eqc-grid').innerHTML = `<thead><tr><th>Growth \\ Rate</th>${A.rateCols.map(c=>`<th>${+c.toFixed(3)}%</th>`).join('')}</tr></thead><tbody>`+
+      A.appRows.map((a,i)=>`<tr><td>${a}%</td>${A.rateCols.map((c,j)=>`<td class="${i===2&&j===2?'base':''}" style="${sensCell(A.eqSens[i][j],emx)}">${XK(`eqg:${i}:${j}`,M$(B(p,A.eqSens[i][j],b.end.m)))}</td>`).join('')}</tr>`).join('')+'</tbody>';
+    const pmx=Math.max(1,...A.eqPrice.map(Math.abs));
+    document.getElementById('b-eqc-price').innerHTML = `<thead><tr>${A.priceCols.map(pr=>`<th>${M$(pr)}</th>`).join('')}</tr></thead><tbody><tr>${A.eqPrice.map((v,i)=>`<td class="${i===2?'base':''}" style="${sensCell(v,pmx)}">${XK('eqp:'+i,M$(B(p,v,b.end.m)))}</td>`).join('')}</tr></tbody>`; }
   // sensitivity
   const mx=Math.max(1,...A.bSens.flat().map(Math.abs)), win=A.bSens.flat().filter(v=>v>=0).length;
   document.getElementById('b-sens-sum').textContent = `Buying beats the rent path in ${win} of 25 combinations of appreciation and rate`;
@@ -3047,6 +3079,16 @@ XP.gs = (g, i, j) => {
     steps:[{l:'Van net worth',v:vV},{op:'−',l:`${nm('rent')} net worth`,v:vR,x:'nw:rent'},{op:'=',l:'Difference',v:vV-vR,cls:'total'}]};
 };
 
+function eqTape(q, head){
+  const b=run('buy',q), e=b.end, p=A.p, paid=b.loan0-e.mort, gain=e.home-b.price0, sellC=e.home*q.sell/100;
+  return {b, steps:[{l:'Down payment',f:`${F$(b.price0)} × ${pctS(q.down)}`,v:b.down0},{op:'+',l:'Principal paid down',f:`${F$(b.loan0)} loan at ${pctS(q.rate)}, now ${F$(e.mort)}`,v:paid},{op:gain<0?'−':'+',l:`Home value growth at ${pctS(q.app)}/yr`,f:`${F$(b.price0)} → ${F$(e.home)}`,v:Math.abs(gain)},{op:'−',l:`Selling costs (${pctS(q.sell)})`,v:sellC},{op:'=',l:'Home equity',f:'Future dollars',v:e.equity,cls:'sub'},...toToday(p,e.equity,e.m)]};
+}
+XP.eqg = (i,j) => { const p=A.p, a=A.appRows[+i], rt=A.rateCols[+j], t=eqTape(variant(p,{app:a,rate:rt}));
+  return {eb:nm('buy')+' · Home equity', t:`${pctS(a)} growth, ${pctS(rt)} rate`, v:M$(B(p,t.b.end.equity,t.b.end.m)), sub:`end of ${ENDY()}, ${DOL()}`,
+    what:`Equity if you sold at the end of ${ENDY()}, with home value growth at ${pctS(a)} a year and a ${pctS(rt)} mortgage. Everything else is your inputs. A lower rate means more of each payment goes to principal; higher growth raises what the house sells for.`, steps:t.steps}; };
+XP.eqp = i => { const p=A.p, pr=A.priceCols[+i], t=eqTape(variant(p,{price:pr}));
+  return {eb:nm('buy')+' · Home equity', t:`Buying at ${F$(pr)}`, v:M$(B(p,t.b.end.equity,t.b.end.m)), sub:`end of ${ENDY()}, ${DOL()}`,
+    what:`Equity at the end of ${ENDY()} if you paid ${F$(pr)} with your other inputs unchanged. A pricier house means a bigger down payment and more principal paid, but also bigger selling costs and a bigger loan.`, steps:t.steps}; };
 XP.xe = y => { const p=A.p, b=A.R.buy, r=A.R.rent; y=+y; const yb=yFull(b,y), yr=yFull(r,y), nb=B(p,yb.nw,yb.m), nr=B(p,yr.nw,yr.m);
   return {eb:nm('buy')+' · Selling early', t:`Sell at the end of year ${y}`, v:S$(nb-nr), sub:`${VS(p)}, ${DOL()}`, what:"Net worth if you sold the house at the end of this year, compared with renting the whole time. The house counts at what you'd net after selling costs.",
     steps:[{l:'Equity after sale',v:B(p,yb.equity,yb.m),x:`eq:buy:${yb.m}`},{sep:'Net worth'},{l:'Buy now',v:nb,x:`nw:buy:${yb.m}`},{op:'−',l:nm('rent'),v:nr,x:`nw:rent:${yr.m}`},{op:'=',l:'Difference',v:nb-nr,cls:'total'}]}; };
