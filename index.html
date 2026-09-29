@@ -701,7 +701,7 @@ table.nw-t{width:100%;font-size:13px}
     <div class="kpis" id="b-kpis"></div>
     <div class="grid g2">
       <div class="card"><div class="card-h"><h2>Monthly cost of owning</h2><span class="sub">Year 1 vs. rent</span></div><div class="card-b"><div class="hb" id="b-month"></div></div></div>
-      <div class="card"><div class="card-h"><h2>Home value and loan</h2><span class="sub">The gap is your equity</span></div>
+      <div class="card"><div class="card-h"><h2>Home value and loan</h2><span class="sub" id="b-eq-sub">The gap is your equity</span></div>
         <div class="legend" id="b-lg1"></div>
         <div class="card-b"><div class="chart sm"><canvas id="c-b-eq"></canvas></div></div></div>
     </div>
@@ -1652,6 +1652,7 @@ function renderBuy(){
   cr.push(['Net cost of owning',f.housing-f.taxBen,'var(--buy)','total','bx'],['Rent today',p.rent,'var(--rent)','total','in:rent']);
   hbars(document.getElementById('b-month'),cr,{fmt:v=>(v<0?'−':'')+F$(Math.abs(v))});
   document.getElementById('b-lg1').innerHTML = `<span><i class="sq" style="background:var(--buy)"></i>Home value</span><span><i class="sq" style="background:var(--muted)"></i>Loan balance</span>`;
+  document.getElementById('b-eq-sub').textContent = REAL ? `Today's dollars (${p.app}%/yr growth minus ${p.infl}% inflation) · the gap is your equity` : 'Future dollars · the gap is your equity';
   const o=baseOpts(XM(0),XM(b.M),H>12?2:1); o.scales.y.min=0;
   chart('c-b-eq',{type:'line',data:{datasets:[
     lineDS('Home value',css('--buy'),b.all.map(s=>({x:XM(s.m),y:B(p,s.home,s.m)})),{fill:'+1',backgroundColor:hexA(css('--buy'),.14)}),
