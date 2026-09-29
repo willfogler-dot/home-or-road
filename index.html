@@ -567,6 +567,19 @@ table.nw-t{width:100%;font-size:13px}
 .eqc .sens td,.eqc .sens th{padding:8px 6px;font-size:12px}
 .cseg{cursor:pointer} .cseg:hover{filter:brightness(1.08)}
 @media (max-width:900px){ .eqc{grid-template-columns:1fr} }
+/* long view */
+.long{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:24px;padding:12px 18px 18px}
+.long-l,.long-r{min-width:0}
+.long-60{display:grid;gap:10px}
+.long-60 .row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;padding:10px 12px;border-radius:12px;background:var(--surface),var(--card-2);border:1px solid var(--line)}
+.long-60 .row b{font-weight:600;display:flex;align-items:center;gap:7px}
+.long-60 .row .v{font-family:var(--fd);font-size:22px;font-weight:650;letter-spacing:-.03em;text-align:right}
+.long-60 .row .s{font-size:11.5px;color:var(--muted);text-align:right;grid-column:2 / 4}
+.long-60 .cap{font-size:12px;color:var(--muted)}
+table.long-t th,table.long-t td{padding:7px 8px;font-size:12.5px}
+table.long-t th:first-child,table.long-t td:first-child{padding-left:0}
+.long-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin:10px 0 0}
+@media (max-width:900px){ .long{grid-template-columns:1fr} }
 /* show the math */
 .x{cursor:pointer;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,currentColor 45%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px;border-radius:4px;transition:background .12s,text-decoration-color .12s;outline-offset:2px}
 .x:hover,.x:focus-visible{background:var(--field);text-decoration-color:currentColor}
@@ -775,6 +788,11 @@ thead th{position:sticky;top:0;z-index:1}
       <div class="card"><div class="card-h"><h2>Range of outcomes</h2><span class="sub" id="s-ff-sub"></span></div>
         <div class="card-b"><div class="ff" id="s-ff"></div></div></div>
     </div>
+    <div class="card"><div class="card-h"><h2>The long view</h2><span class="sub" id="s-long-sub"></span></div>
+      <div class="long">
+        <div class="long-l"><div class="legend" id="s-long-lg" style="padding:0 0 6px"></div><div class="chart"><canvas id="c-s-long"></canvas></div></div>
+        <div class="long-r"><div class="long-60" id="s-long-60"></div><div class="eqc-t" style="margin-top:16px">When each path reaches</div><div class="tw"><table class="long-t" id="s-long-t"></table></div><p class="long-note" id="s-long-note"></p></div>
+      </div></div>
     <div class="card" id="s-inv">
       <div class="card-h"><div><h2>Your investment accounts</h2><div class="sub" style="margin-top:2px" id="s-inv-sub"></div></div>
         <div class="seg sm" role="group" aria-label="Account" id="s-inv-tabs"><button data-acc="brok" aria-pressed="true">Brokerage</button><button data-acc="retire" aria-pressed="false">Retirement</button><button data-acc="both" aria-pressed="false">Both</button></div></div>
@@ -1142,7 +1160,7 @@ function save(){ store.set('homeOrRoad.v3', JSON.stringify(Object.assign({}, P, 
 let DB=null, PLAN_REF=null, HOUSES_COL=null, READONLY=false, SEEDED=false, WRITING=false, AGAIN=false, REMOTE_WAITING=null, SHARED_READY=false, LOCAL_DIFFERS=false;
 // Bump APP_VER whenever the saved plan's shape or the model changes. A tab running older code reloads
 // instead of saving over a plan written by newer code (that is how the as-of date got wiped).
-const APP_VER = 16; let REMOTE_VER = 0;
+const APP_VER = 17; let REMOTE_VER = 0;
 function stateOf(q){ return Object.assign(clone(q), {v4:true, appVer:APP_VER}); }
 function commit(){ save(); if(PLAN_REF && !READONLY) writePlan(); }
 async function writePlan(){
@@ -1599,6 +1617,7 @@ function renderSummary(){
   document.getElementById('s-cmp').innerHTML = `<thead><tr><th></th>${ks.map(k=>`<th><i class="sq" style="background:var(${COL[k]});margin-right:6px;vertical-align:-1px"></i>${N[k]}</th>`).join('')}</tr></thead><tbody>` +
     rows.map(r=> r[0]==='sec' ? `<tr class="sec"><td colspan="4">${r[1]}</td></tr>` : `<tr><td>${r[0]}</td>${ks.map(k=>{ const v=r[1](k), x=r[3]&&v!=='–'?r[3](k):null; return `<td class="${r[2]?r[2](k):''}">${x?XK(x,v):v}</td>`; }).join('')}</tr>`).join('') + '</tbody>';
   renderUpfront();
+  renderLong();
   renderInvestments();
   renderAnalysis();
 }
@@ -2571,6 +2590,36 @@ function renderCash(){
   };
 }
 function saveCF(){ store.set('homeOrRoad.cf', JSON.stringify(CF)); }
+
+/* =================== long view (30 years, today's dollars) =================== */
+const AGES = {Will:30, Megan:34, asOfYear:2026};   // ages as of fall 2026
+function longRuns(p){
+  const key=JSON.stringify(p);
+  if(longRuns._k===key) return longRuns._v;
+  const q=variant(p,{horizon:Math.max(30,p.horizon)}), v={p:q, rent:run('rent',q), buy:run('buy',q), van:run('van',q)};
+  longRuns._k=key; longRuns._v=v; return v;
+}
+function renderLong(){
+  const p=A.p, L=longRuns(p), N=NAME(p), ks=['rent','buy','van'], q=L.p;
+  const endYear=START_YEAR+L.rent.H-1, willAge=a=>AGES.Will+(a-AGES.asOfYear), T=(r,m)=>TODAY(q,r.all[m].nw,m);
+  document.getElementById('s-long-sub').textContent = `Same model, run to ${endYear} · today's dollars`;
+  document.getElementById('s-long-lg').innerHTML = ks.map(k=>`<span><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</span>`).join('');
+  const o=baseOpts(XM(0), XM(L.rent.M), 5); o.layout.padding.right=64;
+  o.plugins.roadBand={from:XM(L.van.vS),to:XM(L.van.vS+L.van.roadM),color:css('--band'),text:css('--van')};
+  o.plugins.endLabels={on:true,fmt:v=>M$(v)};
+  chart('c-s-long',{type:'line',data:{datasets:ks.map(k=>lineDS(N[k],css(COL[k]),L[k].all.filter((s,i)=>i%3===0||i===L[k].M).map(s=>({x:XM(s.m),y:T(L[k],s.m)}))))},options:o});
+  // at 60
+  const y60=AGES.asOfYear+(60-AGES.Will), m60=Math.min(L.rent.M, Math.max(0,(y60-T0Y)*12+11-T0M+1)), base=T(L.rent,m60);
+  document.getElementById('s-long-60').innerHTML = `<div class="cap">When Will is 60 (${y60}) · Megan ${AGES.Megan+(y60-AGES.asOfYear)}</div>`+ks.map(k=>{ const v=T(L[k],m60);
+    return `<div class="row"><b><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</b><span></span><span class="v">${M$(v)}</span><span class="s">${k==='rent'?'Baseline':`${S$(v-base)} · ${Math.round(v/base*100)}% of renting`}</span></div>`; }).join('');
+  // milestones
+  const reach=(r,th)=>{ for(let m=0;m<=r.M;m++) if(T(r,m)>=th) return yrOfM(Math.max(0,m-1)); return null; };
+  const ths=[1e6,2e6,3e6,5e6];
+  document.getElementById('s-long-t').innerHTML = `<thead><tr><th>Net worth</th>${ks.map(k=>`<th><i class="sq" style="background:var(${COL[k]});margin-right:5px;vertical-align:-1px"></i>${N[k]}</th>`).join('')}</tr></thead><tbody>`+
+    ths.map(th=>{ const yr=ks.map(k=>reach(L[k],th)); const b0=yr[0];
+      return `<tr><td>${M$(th,0)}</td>${yr.map((y,i)=>`<td>${y?`${y}<small style="color:var(--muted)"> · ${willAge(y)}</small>${i>0&&b0&&y-b0>0?` <small style="color:var(--neg)">+${y-b0}y</small>`:''}`:'–'}</td>`).join('')}</tr>`; }).join('')+'</tbody>';
+  document.getElementById('s-long-note').textContent = `Year reached · Will's age. Assumes ${p.ret}% returns, ${p.raise}% raises and that you keep saving the way you do now; the further out, the less certain. Change "Years to project" on Assumptions to run the whole dashboard this far.`;
+}
 
 /* =================== up-front capital =================== */
 function upOf(k){
