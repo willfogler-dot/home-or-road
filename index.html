@@ -690,14 +690,17 @@ window.claude = { use: async name => {
   if(TAB==='homes') renderHomes();
   return makeAdapter();
 }};
-if(sb) sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN' && !SB_USER){ try{ if(!sessionStorage.getItem('hr-reloaded')){ sessionStorage.setItem('hr-reloaded','1'); location.reload(); } }catch(e){ location.reload(); } } if(ev==='SIGNED_OUT'){ location.reload(); } });
+// No reloads here: on sign-in, connect in place (once); on sign-out, drop back to browser-only.
+if(sb) sb.auth.onAuthStateChange((ev, session)=>{
+  if((ev==='SIGNED_IN'||ev==='INITIAL_SESSION') && session && !SB_USER && !PLAN_REF){ setTimeout(()=>{ if(!PLAN_REF) connectStore(); },0); }
+  if(ev==='SIGNED_OUT' && SB_USER){ SB_USER=null; PLAN_REF=null; HOUSES_COL=null; renderAuth(); setSync(); }
+});
 function renderAuth(){
   const el=document.getElementById('auth'); if(!el) return;
-  try{ sessionStorage.removeItem('hr-reloaded'); }catch(e){}
   if(!sb){ el.innerHTML=''; return; }
   if(SB_USER){
     el.innerHTML = `<div class="authline">${SB_DENIED?'<span style="color:var(--warn)">Not on the access list</span>':'Signed in'} · ${esc(SB_USER.email)}</div><button class="btn sm" id="signout">Sign out</button>`;
-    document.getElementById('signout').onclick=()=>sb.auth.signOut();
+    document.getElementById('signout').onclick=async()=>{ await sb.auth.signOut(); location.reload(); };
   } else {
     el.innerHTML = `<button class="btn pri sm" id="signin">Sign in to sync</button>`;
     document.getElementById('signin').onclick=()=>openModal({type:'signin'});
@@ -829,7 +832,9 @@ function applyRemote(st){
   if(Object.keys(EDIT).length){ REMOTE_WAITING=st; return; }
   P=q; save(); if(TAB==='inputs') Object.keys(BOXES).forEach(renderBox); recompute();
 }
+let CONNECTING=false;
 async function connectStore(){
+  if(CONNECTING||PLAN_REF) return; CONNECTING=true;
   try{
     if(!(window.claude && typeof window.claude.use==='function')) return;
     DB = await window.claude.use('db'); if(!DB) return;
@@ -853,6 +858,7 @@ async function connectStore(){
       HOUSES=list.sort((a,b)=>(a.addedAt||0)-(b.addedAt||0)); renderHomesNav(); if(TAB==='homes') renderHomes();
     }, e=>{});
   }catch(e){ PLAN_REF=null; HOUSES_COL=null; setSync(); }
+  finally{ CONNECTING=false; }
 }
 
 /* =================== formatting =================== */
