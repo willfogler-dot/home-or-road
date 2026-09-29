@@ -517,6 +517,20 @@ table.cf{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-co
 .cf td.tc,.cf th.tc{border-left:1px solid var(--line)}
 .cf tbody tr:hover td{background:var(--card-2)}
 .cf-note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.55}
+/* today */
+.nw-bar{display:flex;height:30px;border-radius:9px;overflow:hidden;gap:2px;margin-bottom:14px}
+.nw-bar div{display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;min-width:0}
+table.nw-t{width:100%;font-size:13px}
+.nw-t td,.nw-t th{padding:8px 10px;text-align:right;white-space:nowrap}
+.nw-t td:first-child,.nw-t th:first-child{text-align:left}
+.nw-t tr.tot td{font-weight:700;border-top:1px solid var(--line-2)}
+.n-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.n-step{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card-2)}
+.n-step .k{font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.n-step .d{font-size:12px;color:var(--ink-2);margin-top:1px}
+.n-step .v{font-family:var(--fd);font-size:26px;font-weight:650;letter-spacing:-.03em;margin-top:8px}
+.n-step .s{font-size:12px;color:var(--muted);margin-top:2px}
+@media (max-width:820px){ .n-steps{grid-template-columns:1fr} }
 /* show the math */
 .x{cursor:pointer;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,currentColor 45%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px;border-radius:4px;transition:background .12s,text-decoration-color .12s;outline-offset:2px}
 .x:hover,.x:focus-visible{background:var(--field);text-decoration-color:currentColor}
@@ -578,6 +592,7 @@ table.cf{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-co
       <div><b>Home or Road</b><span>Will &amp; Megan · household plan</span></div>
     </div>
     <nav class="nav" role="tablist" id="tabs">
+      <button role="tab" data-tab="now"><span class="ic"><i style="background:var(--pos);border-radius:50%"></i></span>Today<span class="nv" id="nv-now"></span></button>
       <button role="tab" data-tab="summary"><span class="ic"><i style="background:var(--ink-2)"></i></span>Summary<span class="nv"></span></button>
       <div class="grp">Paths · net worth</div>
       <button role="tab" data-tab="rent"><span class="ic"><i style="background:var(--rent)"></i></span><span data-nm="rent">Rent</span><span class="nv" data-nv="rent"></span></button>
@@ -598,6 +613,20 @@ table.cf{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-co
   </aside>
 
   <div class="main"><div class="wrap">
+
+  <!-- TODAY -->
+  <section class="tab" id="tab-now" hidden>
+    <header class="hero"><div class="eyebrow" id="n-eb"></div><h1 class="thesis" id="n-thesis"></h1><p class="lede" id="n-lede"></p></header>
+    <div class="kpis" id="n-kpis"></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-h"><h2>Where it sits</h2><span class="sub" id="n-where-sub"></span></div>
+        <div class="card-b"><div class="nw-bar" id="n-bar"></div><div class="tw"><table class="nw-t" id="n-table"></table></div></div></div>
+      <div class="card"><div class="card-h"><h2>Your monthly engine</h2><span class="sub">This month, current lease</span></div>
+        <div class="card-b"><div class="hb" id="n-engine"></div><div class="up-note" id="n-engine-note"></div></div></div>
+    </div>
+    <div class="card"><div class="card-h"><h2>Between now and the decision</h2><span class="sub" id="n-path-sub"></span></div>
+      <div class="card-b"><div class="n-steps" id="n-steps"></div></div></div>
+  </section>
 
   <!-- SUMMARY -->
   <section class="tab" id="tab-summary">
@@ -926,6 +955,7 @@ const BOXES = {
     ['bddVan','Brokerage deposit after the road',0,'%','Share of the old deposit you restart; the rest goes to checking'],
     ['vanResale','Van resale value',60,'%','Share of price when you sell'],
     ['vanSetup','Setup costs',8000,'$','Gear, moving into storage'],
+    ['carSale','Car you sell when you leave',0,'$','e.g. the 2019 Camry, private-party value; 0 = keep both cars'],
   ]},
   'box-mkt': {title:'Markets, cash + horizon', fields:[
     ['cashMonths','Cash to keep in checking',6,'mo','Months of expenses; anything above is invested in brokerage'],
@@ -958,7 +988,7 @@ function fromState(s){
 let LOCAL_RAW=null; try{ LOCAL_RAW=JSON.parse(store.get('homeOrRoad.v3')||'null'); }catch(e){}
 let P = fromState(LOCAL_RAW);
 let REAL = store.get('homeOrRoad.real2')!=='0';
-let TAB = ['summary','rent','buy','van','cash','homes','inputs'].includes(store.get('homeOrRoad.tab')) ? store.get('homeOrRoad.tab') : 'summary';
+let TAB = ['now','summary','rent','buy','van','cash','homes','inputs'].includes(store.get('homeOrRoad.tab')) ? store.get('homeOrRoad.tab') : 'summary';
 let OPEN = {}; try{ OPEN = JSON.parse(store.get('homeOrRoad.open2')||'{}')||{}; }catch(e){}
 const EDIT = {};
 function save(){ store.set('homeOrRoad.v3', JSON.stringify(Object.assign({}, P, {v4:true}))); }
@@ -1046,7 +1076,7 @@ function run(kind, p){
   const laterBuyM = kind==='buy' ? T : kind==='rent' && p.rentBuyYears>0 ? T+Math.round(p.rentBuyYears*12) : (kind==='van' && p.after==='buy' ? roadEnd : null);
   const roadMul = p._roadMul||1;
   let cash=p.cash, brok=p.brok, retire=p.retire, home=0, mort=0, pmt=0, mr=0, van=0, vanBal=0, vanPmt=0, bought=false;
-  let evClose=0, evVan=0, evSale=0, preClose=0, postClose=0, preVan=0, postVan=0, cashAtClose=0, buyM=null, loan0=0, price0=0, closeCost=0, renoCost=0, down0=0, vanCashIn=0, vanSaleNet=0;
+  let evClose=0, evVan=0, evSale=0, evCar=0, preClose=0, postClose=0, preVan=0, postVan=0, cashAtClose=0, buyM=null, loan0=0, price0=0, closeCost=0, renoCost=0, down0=0, vanCashIn=0, vanSaleNet=0;
   const vr = p.vanRate/100/12;
   const vanDep = roadM ? p.vanPrice*(1-p.vanResale/100)/roadM : 0;
   let draw=0;
@@ -1061,7 +1091,7 @@ function run(kind, p){
   if(laterBuyM===0) buyHome(0);
   function buyVan(){
     const fin=Math.min(100,Math.max(0,p.vanFin||0))/100;
-    vanBal=p.vanPrice*fin; vanCashIn=p.vanPrice*(1-fin)+p.vanSetup; preVan=cash+brok; spend(vanCashIn); postVan=cash+brok; evVan+=vanCashIn; van=p.vanPrice;
+    vanBal=p.vanPrice*fin; vanCashIn=p.vanPrice*(1-fin)+p.vanSetup; preVan=cash+brok; if(p.carSale>0){ cash+=p.carSale; evCar+=p.carSale; } spend(vanCashIn); postVan=cash+brok; evVan+=vanCashIn; van=p.vanPrice;
     vanPmt = vanBal>0 ? (vr>0 ? vanBal*vr/(1-Math.pow(1+vr,-VAN_TERM)) : vanBal/VAN_TERM) : 0;
   }
   if(kind==='van' && vS===0) buyVan();
@@ -1122,7 +1152,7 @@ function run(kind, p){
     if(cash>tgt){ r.sweep=cash-tgt; cash-=r.sweep; brok+=r.sweep; }
     r.brokDraw=draw; r.invested=r.bdd+r.contrib; r.brokGrowth=brok*ri; r.retGrowth=retire*ri; r.cashGrowth=cash>0?cash*rc:0;
     cash *= cash>0?(1+rc):1; brok *= (1+ri); retire *= (1+ri);   // a negative brokerage balance = borrowing, charged at the investment return
-    r.fac=fac; r.oneClose=evClose; r.oneVan=evVan; r.oneSale=evSale; evClose=evVan=evSale=0; Object.assign(r, snap(m+1)); r.onRoad=onRoad; r.inGap=inGap; r.pre=pre;
+    r.fac=fac; r.oneClose=evClose; r.oneVan=evVan; r.oneSale=evSale; r.oneCar=evCar; evClose=evVan=evSale=evCar=0; Object.assign(r, snap(m+1)); r.onRoad=onRoad; r.inGap=inGap; r.pre=pre;
     months.push(r);
   }
   const years=[];
@@ -1183,7 +1213,7 @@ function computeAll(p){
 /* van gap decomposition, today's dollars at horizon end */
 function vanCost(A){
   const p=A.p, r=A.R.rent, v=A.R.van, M=r.M, gM=Math.pow(1+p.ret/100,1/12);
-  const det={saved:[],road:[],van:[],gap:[],pay:[],contrib:[],pre:[]};
+  const det={saved:[],road:[],van:[],gap:[],pay:[],contrib:[],pre:[],car:[]};
   const add=(k,m,amt,lab)=>{ const g=Math.pow(gM,M-m-1); det[k].push({m,amt,g,fv:amt*g,tod:TODAY(p,amt,m),lab}); return amt*g; };
   let saved=0, road=0, loan=0, gapM=0, pay=0, contrib=0, preM=0;
   for(let m=0;m<M;m++){
@@ -1194,11 +1224,12 @@ function vanCost(A){
     else if(b.inGap){ gapM += add('gap',m,a.saved-b.saved); }
     else pay += add('pay',m,a.saved-b.saved);
   }
+  if(p.carSale>0) add('car',v.vS,-p.carSale,'Car sold');
   const vanNet = add('van',v.vS,v.vanCashIn,'Van + setup') + loan + add('van',v.vS+v.roadM-1,-v.vanSaleNet,'Van sold');
   const total = r.end.nw - v.end.nw, T = x => TODAY(p,x,M);
   // each part = its cash, in today's dollars as of when it happens; the growth that cash would have earned is one separate line
   const cashOf = k => det[k].reduce((a,x)=>a+x.tod,0), fvOf = k => T(det[k].reduce((a,x)=>a+x.fv,0));
-  const keys=['saved','road','van','gap','pay','contrib','pre'];
+  const keys=['saved','road','van','gap','pay','contrib','pre','car'];
   const parts = [
     ['Savings you stop making', cashOf('saved'), 'saved'],
     ['Road spending', cashOf('road'), 'road'],
@@ -1208,6 +1239,7 @@ function vanCost(A){
     ['Skipped retirement contributions', cashOf('contrib'), 'contrib'],
   ];
   if(Math.abs(cashOf('pre'))>=500) parts.push(['Months before you leave', cashOf('pre'), 'pre']);
+  if(p.carSale>0) parts.push(['Car you sell', cashOf('car'), 'car']);
   const growth = keys.reduce((a,k)=>a+fvOf(k)-cashOf(k),0) + (Math.abs(cashOf('pre'))>=500?0:cashOf('pre'));
   parts.push(['Lost investment growth', growth, 'growth']);
   const other = T(total)-parts.reduce((a,x)=>a+x[1],0);
@@ -2155,13 +2187,14 @@ function homeAction(act,id){
 
 /* =================== orchestration =================== */
 function renderNav(){
+  { const e=document.getElementById('nv-now'); if(e) e.textContent=M$(P.cash+P.brok+P.retire); }
   const p=A.p, N=NAME(p);
   ['rent','buy','van'].forEach(k=>{ document.querySelector(`[data-nv="${k}"]`).textContent=M$(B(p,A.R[k].end.nw,A.R[k].end.m)); document.querySelector(`[data-nm="${k}"]`).textContent=N[k]; });
   document.getElementById('meta').innerHTML = `Today ${fmtDay(new Date())} · balances as of ${fmtDay(asOfDate())}<br>Net worth shown at end of ${START_YEAR+A.R.rent.H-1}`;
 }
 function recompute(){ A=computeAll(P); if(!Object.keys(EDIT).length) save(); renderNav(); renderHomesNav(); renderTab(); if(XSTACK.length) renderX(); }
 let _t=null; function recomputeSoon(){ clearTimeout(_t); _t=setTimeout(recompute,120); }
-function renderTab(){ if(TAB==='summary') renderSummary(); else if(TAB==='rent') renderRent(); else if(TAB==='buy') renderBuy(); else if(TAB==='van') renderVan(); else if(TAB==='cash') renderCash(); else if(TAB==='homes') renderHomes(); }
+function renderTab(){ if(TAB==='summary') renderSummary(); else if(TAB==='rent') renderRent(); else if(TAB==='buy') renderBuy(); else if(TAB==='van') renderVan(); else if(TAB==='cash') renderCash(); else if(TAB==='now') renderNow(); else if(TAB==='homes') renderHomes(); }
 function setTab(t){
   TAB=t; store.set('homeOrRoad.tab',t);
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===t));
@@ -2182,6 +2215,51 @@ const retheme=()=>{ if(A) renderTab(); };
 try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',retheme); }catch(e){}
 new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
+/* =================== today =================== */
+function renderNow(){
+  const p=P, A0=A.p, r=A.R.rent, N=NAME(A0), d=asOfDate();
+  const liq=p.cash+p.brok, nw=liq+p.retire;
+  const rentNow = p.rentNow>0 ? p.rentNow : p.rent, spend = rentNow+livingOf(p), net = p.bank-spend;
+  const saveMo = p.bdd + p.contrib/12 + Math.max(0,net), rate = saveMo/(p.bank+p.bdd+p.contrib/12)*100;
+  const age=Math.floor((parseISO(todayISO())-d)/864e5);
+  document.getElementById('n-eb').textContent = `Today · ${fmtDay(new Date())}`;
+  document.getElementById('n-thesis').innerHTML = `You're worth ${XK('nwnow',`<em class="hl-rent">${M$(nw)}</em>`)} today, with no debt counted, and you're adding about ${XK('savenow',`<em class="hl-rent">${F$(saveMo)}/mo</em>`)}.`;
+  document.getElementById('n-lede').textContent = `Balances as of ${fmtDay(d)}${age>0?` (${age} day${age===1?'':'s'} ago)`:''}. ${F$(liq)} is liquid (cash + brokerage) and ${F$(p.retire)} is in retirement accounts.${age>31?' Update Savings on Assumptions to refresh.':''}`;
+  document.getElementById('nv-now').textContent = M$(nw);
+  kpis(document.getElementById('n-kpis'),[
+    ['Net worth',M$(nw),chip('As of '+d.toLocaleString('en-US',{month:'short',day:'numeric'}),'nt'),'','nwnow'],
+    ['Liquid',M$(liq),chip(`${Math.round(liq/nw*100)}% of net worth`,'nt'),'','in:cash'],
+    ['Runway with no income',`${(liq/spend).toFixed(1)} mo`,chip(`${F$(spend)}/mo of spending`,'nt'),'','rwnow'],
+    ['Saving rate',pct(rate),chip(`${F$(saveMo)}/mo`,'up'),'','savenow'],
+  ]);
+  // where it sits
+  const rows=[['Cash','cash','--c-cash'],['Brokerage','brok','--c-brok'],['Retirement','retire','--c-ret']];
+  document.getElementById('n-where-sub').textContent = `${PEOPLE[0]} and ${PEOPLE[1]}`;
+  document.getElementById('n-bar').innerHTML = rows.map(([l,k,c])=>p[k]>0?`<div style="flex:${p[k]/nw} 1 0;background:var(${c});${c==='--c-cash'?'color:#1b2440':''}" title="${l}: ${F$(p[k])}">${p[k]/nw>0.12?l+' '+M$(p[k]):''}</div>`:'').join('');
+  const pp=k=>P.pp[k]||[p[k],0], tot=[0,1].map(w=>rows.reduce((a,[l,k])=>a+pp(k)[w],0));
+  document.getElementById('n-table').innerHTML = `<thead><tr><th></th><th>${PEOPLE[0]}</th><th>${PEOPLE[1]}</th><th>Total</th><th>Share</th></tr></thead><tbody>`+
+    rows.map(([l,k,c])=>`<tr><td><i class="sq" style="background:var(${c});margin-right:7px;vertical-align:-1px"></i>${l}</td><td>${F$(pp(k)[0])}</td><td>${F$(pp(k)[1])}</td><td>${XK('in:'+k,F$(p[k]))}</td><td>${pct(p[k]/nw*100)}</td></tr>`).join('')+
+    `<tr class="tot"><td>Net worth</td><td>${F$(tot[0])}</td><td>${F$(tot[1])}</td><td>${XK('nwnow',F$(nw))}</td><td>100%</td></tr></tbody>`;
+  // engine
+  hbars(document.getElementById('n-engine'),[
+    ['Income to checking',p.bank,'var(--pos)','','in:bank'],
+    ['Rent, current lease',-rentNow,'var(--neg)','','in:rentNow'],
+    ['Cars, insurance, other',-livingOf(p),'var(--neg)','','exp:rent'],
+    ['Net income',net,net>=0?'var(--pos)':'var(--neg)','total','savenow'],
+    ['Brokerage deposit',p.bdd,'var(--c-brok)','','in:bdd'],
+    ['Retirement contributions',p.contrib/12,'var(--c-ret)','','in:contrib'],
+  ],{fmt:v=>(v<0?'−':'')+F$(Math.abs(v))});
+  document.getElementById('n-engine-note').innerHTML = `Brokerage deposits and retirement contributions come out of pay before income hits checking. ${p.rentNow>0?'':'<b>Current rent isn’t entered</b>, so this uses your yard-house rent. '}Saving rate = what you invest + positive net income, as a share of everything you earn after tax.`;
+  // between now and the decision
+  const LE=r.LE, T=r.T, at=m=>{ const x=r.all[Math.min(m,r.M)]; return {nw:B(A0,x.nw,x.m), liq:B(A0,x.liq,x.m)}; };
+  document.getElementById('n-path-sub').textContent = `The three paths are identical until ${mon(T)}`;
+  const step=(k,dt,v,sub,x)=>`<div class="n-step"><div class="k">${k}</div><div class="d">${dt}</div><div class="v">${XK(x,M$(v))}</div><div class="s">${sub}</div></div>`;
+  const nwT=at(T).nw, liqT=at(T).liq;
+  document.getElementById('n-steps').innerHTML =
+    step('Today',fmtDay(d),nw,`${M$(liq)} liquid`,'nwnow')+
+    step('Lease ends',monEnd(LE),at(LE).nw,`${M$(at(LE).liq)} liquid · +${M$(at(LE).nw-nw)} from today`,`nw:rent:${LE}`)+
+    step('Paths split',`${mon(T)}: rent moves, buy closes, van leaves`,nwT,`${M$(liqT)} liquid · +${M$(nwT-nw)} from today`,`nw:rent:${T}`);
+}
 /* =================== cash flow statement =================== */
 let CF = (()=>{ try{ return Object.assign({k:'rent',per:'y',yr:0}, JSON.parse(store.get('homeOrRoad.cf')||'{}')); }catch(e){ return {k:'rent',per:'y',yr:0}; } })();
 function cfLines(run){
@@ -2209,6 +2287,7 @@ function cfLines(run){
     ['sec','One-time'],
     ['Home purchase (down, closing, reno)', x=>-x.oneClose],
     ['Van + setup', x=>-x.oneVan],
+    ['Car sold', x=>x.oneCar],
     ['Van sale, net of loan', x=>x.oneSale],
     ['sec','Saving + investing'],
     ['Brokerage direct deposits', x=>x.bdd],
@@ -2270,7 +2349,7 @@ function saveCF(){ store.set('homeOrRoad.cf', JSON.stringify(CF)); }
 function upOf(k){
   const p=A.p, r=A.R[k], liq=p.cash+p.brok;
   if(k==='van'){ const fin=Math.min(100,Math.max(0,p.vanFin))/100;
-    return {need:r.vanCashIn, have:r.preVan, when:mon(r.vS), fin:p.vanPrice*fin, x:'up:van', segs:[['Van build-out',p.vanPrice*(1-fin),1],['Setup',p.vanSetup,.55]]}; }
+    return {need:r.vanCashIn, have:r.preVan+(p.carSale>0?p.carSale:0), when:mon(r.vS), fin:p.vanPrice*fin, x:'up:van', segs:[['Van build-out',p.vanPrice*(1-fin),1],['Setup',p.vanSetup,.55]]}; }
   if(r.buyM===null) return {need:0, have:liq, x:'up:rent', segs:[]};
   const have = r.preClose;
   return {need:r.cashAtClose, have, when:mon(r.buyM), x:'cl:'+k, segs:[['Down payment',r.down0,1],['Closing costs',r.closeCost,.55],['Renovation',r.renoCost,.3]]};
@@ -2287,6 +2366,7 @@ function renderUpfront(){
   const v=U[2], notes=[];
   notes.push('Bars are the cash each path needs on day one; the line is the cash + brokerage you have then. Retirement isn’t counted.');
   if(v.fin>0) notes.push(`<b>${F$(v.fin)}</b> of the van is financed and paid monthly instead.`);
+  if(p.carSale>0) notes.push(`The van line’s available cash includes <b>${F$(p.carSale)}</b> from selling a car.`);
   notes.push(`The van comes back as about <b>${M$(p.vanPrice*p.vanResale/100)}</b> when you sell it; closing costs don’t come back, and the down payment comes back only as equity when you sell.`);
   if(A.R.rent.buyM!==null) notes.push(`${N.rent} buys in ${mon(A.R.rent.buyM)} at ${M$(A.R.rent.price0)} (grown ${p.app}%/yr), so its numbers are future dollars at that time.`);
   document.getElementById('s-up-note').innerHTML = notes.join(' ');
@@ -2575,8 +2655,9 @@ XP.run = () => {
     what:`Tracks cash + brokerage month by month. Road costs come out of cash first, then brokerage, and whatever's left keeps earning. If the balance never goes below zero before paychecks restart, savings cover the trip.`,
     steps:[{l:'Cash + brokerage today',v:p.cash+p.brok,x:'in:cash'},
       ...(v.vS>0?[{op:'+',l:`Saved while working until ${mon(v.vS)}`,f:`${v.vS} more months of paychecks and deposits (lease + month-to-month), plus growth`,v:hv-(p.cash+p.brok),x:'in:leaseEnd'},{op:'=',l:'When you buy the van',v:hv,cls:'sub'}]:[]),
+      ...(p.carSale>0?[{op:'+',l:'Car sold',v:p.carSale,x:'in:carSale'}]:[]),
       {op:'−',l:'Van + setup, paid up front',f:`${F$(p.vanPrice)} × (1 − ${pctS(p.vanFin)} financed) + ${F$(p.vanSetup)} setup`,v:v.vanCashIn,x:'up:van'},
-      {op:'=',l:'When you leave',v:hv-v.vanCashIn,cls:'sub'},
+      {op:'=',l:'When you leave',v:hv+(p.carSale>0?p.carSale:0)-v.vanCashIn,cls:'sub'},
       {l:`Low point, ${monEnd(ml.m)}`,f:'After road costs and the job search, net of growth; see the table',v:ml.liq,cls:'sub'},...toToday(p,ml.liq,ml.m)],
     table:{cols:['Month','Money out','Money in','Cash + brokerage'],rows,note:'Future dollars. Money out = road costs + van loan + (after you’re back) housing and spending.'}};
 };
@@ -2599,6 +2680,7 @@ const VG_TXT = {
   road: p=>`What you spend on the road (fuel, food, campsites, health insurance, van upkeep, storage), less any side income. Plain total, each month in today's dollars.`,
   van: p=>`Cash paid for the van and setup, plus any loan payments, minus what you get back when you sell it (${pctS(p.vanResale)} of the price, less any loan left). Plain cash, in today's dollars.`,
   gap: p=>`While you look for work (${p.gap} months), you pay Denver rent and expenses with no paycheck, and the rent path keeps saving. Plain total of the difference, in today's dollars.`,
+  car: p=>`Selling a car when you leave brings in ${F$(p.carSale)} that the rent path doesn't get, so it shrinks the gap. After you're back, the model keeps your car costs as entered; lower Cars on Assumptions if you'd stay a one-car household.`,
   pre: p=>`Before you leave, both paths are identical (same job, same rent), so this is normally zero.`,
   pay: p=>`After you're back, you start at ${pctS(p.returnPct)} of the pay you'd have had${p.catchUp>0?` and climb back to 100% over ${yrs(p.catchUp)}`:' and stay there for the rest of the projection'}. Plain total of how much less you save each month than the rent path, in today's dollars.`,
   contrib: p=>`401(k)/IRA contributions and the match you skip on the road, plus smaller ones after you're back. Plain total, in today's dollars.`,
@@ -2612,7 +2694,7 @@ XP.vg = kk => {
       what:'What the lines above don’t capture: cash earns the cash rate instead of the investment return when balances differ, timing of moves between checking and brokerage, borrowing costs if brokerage goes negative, and (if you buy after) a different purchase date and price. It is the total minus the parts.', steps};
   }
   if(kk==='growth'){
-    const K=[['saved','Savings you stop making'],['road','Road spending'],['van','Van, net of resale'],['gap','Months job hunting'],['pay','Lower pay after you return'],['contrib','Skipped retirement contributions'],['pre','Months before you leave']];
+    const K=[['saved','Savings you stop making'],['road','Road spending'],['van','Van, net of resale'],['gap','Months job hunting'],['pay','Lower pay after you return'],['contrib','Skipped retirement contributions'],['pre','Months before you leave'],['car','Car you sell']];
     const rows=K.map(([k,l])=>{ const c=vc.det[k].reduce((a,x)=>a+x.tod,0), g=TODAY(p,vc.det[k].reduce((a,x)=>a+x.fv,0),A.R.rent.M)-c; return [l,c,g]; }).filter(r=>Math.abs(r[1])+Math.abs(r[2])>=1);
     return {eb:nm('van')+' · Where the gap comes from', t:part[0], v:M$(part[1]), sub:"today's dollars",
       what:`Every dollar in the lines above would otherwise have been invested at ${pctS(p.ret)}/yr until the end of ${E}. This is what it would have grown into, over and above inflation. Money that leaves early (the van, the road) loses the most; later pay differences lose less.`,
@@ -2708,11 +2790,22 @@ XP.up = k => {
       what:'What you pay before you leave: the part of the van you don’t finance, plus gear and setup. After that, road costs come out month by month.',
       steps:[{l:'Built-out van',v:p.vanPrice,x:'in:vanPrice'},{op:'−',l:`Financed (${pctS(p.vanFin)})`,f:'Paid monthly instead',v:p.vanPrice*fin,x:p.vanFin>0?'vl':'in:vanFin'},{op:'=',l:'Van, paid in cash',v:cashVan,cls:'sub'},
         {op:'+',l:'Setup costs',f:'Gear, moving into storage',v:p.vanSetup,x:'in:vanSetup'},{op:'=',l:'Cash needed',v:v.vanCashIn,cls:'sub'},
-        {sep:'What’s left'},{l:v.vS>0?`Cash + brokerage in ${mon(v.vS)}`:'Cash + brokerage today',f:v.vS>0?`After ${v.vS} more months of working and saving`:'',v:hv,x:'run'},{op:'−',l:'Cash needed',v:v.vanCashIn},{op:'=',l:'Left when you leave',v:hv-v.vanCashIn,cls:'total'}],
+        {sep:'What’s left'},{l:v.vS>0?`Cash + brokerage in ${mon(v.vS)}`:'Cash + brokerage today',f:v.vS>0?`After ${v.vS} more months of working and saving`:'',v:hv,x:'run'},...(p.carSale>0?[{op:'+',l:'Car sold',v:p.carSale,x:'in:carSale'}]:[]),{op:'−',l:'Cash needed',v:v.vanCashIn},{op:'=',l:'Left when you leave',v:hv+(p.carSale>0?p.carSale:0)-v.vanCashIn,cls:'total'}],
       notes:[`You get about ${F$(p.vanPrice*p.vanResale/100)} back when you sell it (${pctS(p.vanResale)} of the price), less any loan still owed.`,`From there, the road burns ${F$(A.vanBurn)}/mo.`]}; }
   return {eb:nm('rent'), t:'Cash needed up front', v:'$0', what:'Renting needs no purchase, so everything stays invested. The security deposit and first month’s rent aren’t modeled; they’re small, and the deposit comes back.',
     steps:[{l:'Cash + brokerage today',v:liq,x:'in:cash'},{op:'−',l:'Cash needed',v:0},{op:'=',l:'Stays invested',v:liq,cls:'total'}]};
 };
+
+XP.nwnow = () => { const p=P;
+  return {eb:'Today', t:'Net worth today', v:M$(p.cash+p.brok+p.retire), sub:'as of '+fmtDay(asOfDate()), what:'Your balances as entered on Assumptions → Savings. Cars and other personal property aren’t counted, and there’s no debt entered.',
+    steps:[{l:'Cash',v:p.cash,x:'in:cash'},{op:'+',l:'Brokerage',v:p.brok,x:'in:brok'},{op:'+',l:'Retirement',v:p.retire,x:'in:retire'},{op:'=',l:'Net worth',v:p.cash+p.brok+p.retire,cls:'total'}]}; };
+XP.savenow = () => { const p=P, rentNow=p.rentNow>0?p.rentNow:p.rent, net=p.bank-rentNow-livingOf(p), save=p.bdd+p.contrib/12+Math.max(0,net);
+  return {eb:'Today', t:'Saving per month', v:F$(save)+'/mo', sub:'current lease', what:'What you invest automatically plus what’s left in checking after bills, at today’s pay and your current rent.',
+    steps:[{l:'Income to checking',v:p.bank,x:'in:bank'},{op:'−',l:'Rent, current lease',v:rentNow,x:'in:rentNow'},{op:'−',l:'Cars, insurance, other',v:livingOf(p),x:'in:other'},{op:'=',l:'Net income',v:net,cls:'sub'},
+      {sep:'Saved'},{l:'Brokerage deposit',v:p.bdd,x:'in:bdd'},{op:'+',l:'Retirement contributions',f:`${F$(p.contrib)}/yr ÷ 12`,v:p.contrib/12,x:'in:contrib'},{op:'+',l:'Net income (if positive)',v:Math.max(0,net)},{op:'=',l:'Saving per month',v:save,cls:'total'}]}; };
+XP.rwnow = () => { const p=P, rentNow=p.rentNow>0?p.rentNow:p.rent, sp=rentNow+livingOf(p), liq=p.cash+p.brok;
+  return {eb:'Today', t:'Runway with no income', v:(liq/sp).toFixed(1)+' months', what:'How long cash + brokerage would cover your current spending if both paychecks stopped. Ignores investment swings and taxes on selling.',
+    steps:[{l:'Cash + brokerage',v:liq,x:'in:cash'},{op:'÷',l:'Monthly spending',f:'Current rent + cars, insurance, other',v:sp,fmt:'$'},{op:'=',l:'Months covered',v:(liq/sp).toFixed(1)+' mo',cls:'total'}]}; };
 
 XP.bx = () => { const p=A.p, f=A.R.buy.first, v=f.housing-f.taxBen-p.rent;
   return {eb:nm('buy'), t:'Extra per month to own', v:F$(v)+'/mo', sub:'January 2027', what:'How much more owning costs each month than renting a house with a yard, after the mortgage tax savings.',
