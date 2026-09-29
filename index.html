@@ -545,6 +545,15 @@ table.nw-t{width:100%;font-size:13px}
 .set-row .l b{display:block;font-weight:600;font-size:13.5px} .set-row .l small{color:var(--muted);font-size:12px}
 .set-row .seg{min-width:210px}
 @media (max-width:900px){ .set-btn span{display:none} .set-btn{padding:7px} }
+/* emergency fund box */
+.ef-lede{font-size:12.5px;color:var(--ink-2);line-height:1.55;margin:2px 0 6px}
+.ef-h{font-size:10.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 0 2px}
+.ef-r{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--grid)}
+.ef-r:last-child{border-bottom:0}
+.ef-r .l b{display:block;font-weight:500;font-size:12.5px;color:var(--ink-2)} .ef-r .l small{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+.ef-r .v{font-weight:600;font-size:13px;white-space:nowrap} .ef-r .v small{font-weight:400;color:var(--muted);font-size:11.5px}
+.ef-r .inp{width:150px;flex:none;height:32px}
+.cf tr.memo td{color:var(--muted);font-style:italic;font-size:12px}
 /* show the math */
 .x{cursor:pointer;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,currentColor 45%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px;border-radius:4px;transition:background .12s,text-decoration-color .12s;outline-offset:2px}
 .x:hover,.x:focus-visible{background:var(--field);text-decoration-color:currentColor}
@@ -788,6 +797,7 @@ table.nw-t{width:100%;font-size:13px}
     <div class="grid g2">
       <div class="grid" style="align-content:start">
         <div class="box" id="box-savings"></div>
+        <div class="box" id="box-ef"></div>
         <div class="box" id="box-income"></div>
         <div class="box" id="box-exp"></div>
       </div>
@@ -801,7 +811,7 @@ table.nw-t{width:100%;font-size:13px}
       <details class="drawer" data-d="method"><summary><div><b>How the model works</b><span>Cash flow rules, taxes, stress cases</span></div><i class="chev"></i></summary>
       <div class="drawer-b method">
         <p><b>Monthly model, starting the day your balances are from.</b> The first month counts only the days left in it. Pay and retirement contributions go up once a year with your raise. Car, insurance, other spending, homeowner costs and road costs go up with inflation. Rent goes up at its own rate.</p>
-        <p><b>Where money goes.</b> Brokerage direct deposits go straight into brokerage. Bank deposits pay the bills, and what's left stays in cash. A shortfall is pulled from brokerage. Down payments, the van and any shortfall come out of brokerage first; the emergency fund is only used once brokerage is empty. If both run dry, the model treats the shortfall as borrowing at the investment return and flags the month it happened.</p>
+        <p><b>Where money goes.</b> Brokerage direct deposits go straight into brokerage. Bank deposits pay the bills, and what's left stays in cash. A shortfall is pulled from brokerage. Cash keeps an emergency fund floor (months of housing + bare-bones spending, set per path); above it goes to brokerage. Down payments, the van and any shortfall come out of brokerage first; cash is only used once brokerage is empty. If both run dry, the model treats the shortfall as borrowing at the investment return and flags the month it happened.</p>
         <p><b>Returns.</b> Cash earns the cash yield. Brokerage and retirement earn the investment return. Taxes on brokerage gains aren't modeled, and retirement is never withdrawn.</p>
         <p><b>Buying.</b> Home equity is counted after the cost to sell. Mortgage interest adds a tax benefit only above the $32,200 standard deduction, with SALT capped at $40K (rising 1%/yr) through 2029 and $10K from 2030 under current law, a 24% bracket and 4.4% Colorado tax. PMI of 0.5% a year applies below 20% down, until the loan reaches 78% of the price. Buying later on the rent path uses the house inputs, with the price grown by home value growth.</p>
         <p><b>Van life.</b> No pay and no retirement contributions on the road. Car and insurance stop because the road budget covers them. A financed van uses a 60-month loan, and the balance is paid off from the sale. The van loses value evenly and sells when you return. After the job search, pay restarts at the share you set.</p>
@@ -915,7 +925,7 @@ const STD_DED = 32200, MARG = 0.24, CO_TAX = 0.044, PMI_RATE = 0.5, VAN_TERM = 6
 const PEOPLE = ['Will','Megan'];
 const BOXES = {
   'box-savings': {title:'Savings', people:true, fields:[
-    ['cash','Cash + money market',[35000,25000],'$','Becomes your emergency fund; anything above it goes to brokerage'],
+    ['cash','Cash (money market)',[35000,25000],'$','Checking, savings and money market. Your emergency fund floor is kept here'],
     ['brok','Brokerage',[120000,60000],'$','Taxable investment accounts'],
     ['retire','Retirement',[90000,60000],'$','All 401(k)s, IRAs, Roth'],
   ]},
@@ -934,6 +944,12 @@ const BOXES = {
     ['rent','Rent, today’s market',3400,'$mo','Denver single-family median is ~$2,900; west side with a yard runs higher'],
     ['rentG','Increase per year',2,'%','Denver single-family rents are down ~3% YoY'],
     ['rentBuyYears','Rent path buys after',0,'yr','0 = keep renting'],
+  ]},
+  'box-ef': {title:'Emergency fund', ef:true, fields:[
+    ['essentials','Bare-bones spending',3000,'$mo','Everything but housing, if you were living off the fund'],
+    ['efRent','Rent',4,'mo'],
+    ['efBuy','Buy',6,'mo'],
+    ['efVan','Van Life, once you’re back',6,'mo','On the road it can be spent'],
   ]},
   'box-exp': {title:'Monthly expenses', people:true, fields:[
     ['car','Cars',[450,450],'$mo','Payments, gas, maintenance'],
@@ -977,12 +993,8 @@ const BOXES = {
     ['carSale','Car you sell when you leave',0,'$','e.g. the 2019 Camry, private-party value; 0 = keep both cars'],
   ]},
   'box-mkt': {title:'Markets, cash + horizon', fields:[
-    ['essentials','Bare-bones spending',3000,'$mo','What you’d spend outside housing if you were living off the emergency fund'],
-    ['efRent','Emergency fund: rent',4,'mo','Months of housing + bare-bones spending'],
-    ['efBuy','Emergency fund: buy',6,'mo','Months of housing + bare-bones spending'],
-    ['efVan','Emergency fund: van, once you’re back',6,'mo','On the road it can be spent; it’s rebuilt when you return'],
     ['ret','Investment return',6.5,'%','Brokerage + retirement, per year'],
-    ['cashY','Money market yield',3.5,'%','What the emergency fund earns, per year'],
+    ['cashY','Cash yield (money market)',3.5,'%','What cash earns, per year'],
     ['infl','Inflation',3,'%'],
     ['horizon','Years to project',10,'yr'],
   ]},
@@ -1018,7 +1030,7 @@ function save(){ store.set('homeOrRoad.v3', JSON.stringify(Object.assign({}, P, 
 let DB=null, PLAN_REF=null, HOUSES_COL=null, READONLY=false, SEEDED=false, WRITING=false, AGAIN=false, REMOTE_WAITING=null, SHARED_READY=false, LOCAL_DIFFERS=false;
 // Bump APP_VER whenever the saved plan's shape or the model changes. A tab running older code reloads
 // instead of saving over a plan written by newer code (that is how the as-of date got wiped).
-const APP_VER = 13; let REMOTE_VER = 0;
+const APP_VER = 14; let REMOTE_VER = 0;
 function stateOf(q){ return Object.assign(clone(q), {v4:true, appVer:APP_VER}); }
 function commit(){ save(); if(PLAN_REF && !READONLY) writePlan(); }
 async function writePlan(){
@@ -1356,7 +1368,7 @@ function stackChart(id, run, parts){
   chart(id,{type:'bar',data:{labels,datasets:parts.map(([k,l,c],i)=>({label:l,data:rows.map(y=>B(p,Math.max(0,k==='van'?(y.van-(y.vanBal||0)):y[k]),y.m)),backgroundColor:css(c),borderColor:css('--card'),borderWidth:{top:i===parts.length-1?0:2,left:0,right:0,bottom:0},borderRadius:i===parts.length-1?{topLeft:5,topRight:5}:0,borderSkipped:false,maxBarThickness:34}))},options:o});
   return parts.map(([k,l,c])=>`<span><i class="sq" style="background:var(${c})"></i>${l}</span>`).join('');
 }
-const COMP = {cash:['cash','Emergency fund','--c-cash'], brok:['brok','Brokerage','--c-brok'], retire:['retire','Retirement','--c-ret'], equity:['equity','Home equity','--c-eq'], van:['van','Van','--c-van']};
+const COMP = {cash:['cash','Cash','--c-cash'], brok:['brok','Brokerage','--c-brok'], retire:['retire','Retirement','--c-ret'], equity:['equity','Home equity','--c-eq'], van:['van','Van','--c-van']};
 function spark(series, lo, hi, color){
   const w=300,h=46, n=series.length-1, X=i=>(i/n*w).toFixed(1), Y=v=>(h-3-(v-lo)/(hi-lo||1)*(h-8)).toFixed(1);
   const pts=series.map((v,i)=>`${X(i)},${Y(v)}`).join(' ');
@@ -1493,7 +1505,7 @@ function renderInvestments(){
   const rowsB = ACC!=='retire' ? `<tr class="sec"><td colspan="4">Brokerage</td></tr>`+row('Today',b=>b.sB,'','endB')+row('+ Direct deposits',b=>b.dep,'','endB')+row('+ Surplus moved from checking',b=>b.sw,'','endB')+row('− Withdrawals',b=>-b.wd,'','endB')+row('+ Market growth',b=>b.gB,'','endB')+row(`= End of ${E}`,b=>b.eB,'eq','endB') : '';
   const rowsR = ACC!=='brok' ? `<tr class="sec"><td colspan="4">Retirement</td></tr>`+row('Today',b=>b.sR,'','endR')+row('+ Contributions',b=>b.con,'','endR')+row('+ Market growth',b=>b.gR,'','endR')+row(`= End of ${E}`,b=>b.eR,'eq','endR') : '';
   document.getElementById('s-bridge').innerHTML = `<thead><tr><th>${REAL?"Today's $":'Future $'}</th>${ks.map(k=>`<th><i class="sq" style="background:var(${COL[k]});margin-right:5px;vertical-align:-1px"></i>${N[k]}</th>`).join('')}</tr></thead><tbody>${rowsB}${rowsR}</tbody>`;
-  const parts=[['cash','Emergency fund','--c-cash'],['brok','Brokerage','--c-brok'],['retire','Retirement','--c-ret'],['equity','Home equity','--c-eq'],['van','Van','--c-van']];
+  const parts=[['cash','Cash','--c-cash'],['brok','Brokerage','--c-brok'],['retire','Retirement','--c-ret'],['equity','Home equity','--c-eq'],['van','Van','--c-van']];
   document.getElementById('s-comp-sub').textContent = `End of ${E}`;
   document.getElementById('s-comp').innerHTML = ks.map(k=>{ const e=R[k].end, vals=parts.map(([key])=>Math.max(0,B(p,key==='van'?e.van-e.vanBal:e[key],e.m))), tot=vals.reduce((a,x)=>a+x,0)||1;
     return `<div class="comp-row"><span class="who"><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</span><div class="cbar">${parts.map(([key,l,c],i)=>vals[i]>0?`<div style="flex:${vals[i]/tot} 1 0;background:var(${c});${c==='--c-cash'?'color:#1b2440':''}" title="${l}: ${M$(vals[i])}">${vals[i]/tot>0.11?M$(vals[i]):''}</div>`:'').join('')}</div><span class="tot">${M$(B(p,e.nw,e.m))}</span></div>`; }).join('');
@@ -1766,6 +1778,7 @@ function inpHTML(id,val,who){
 }
 function headTotal(bid){
   const p=P;
+  if(bid==='box-ef') return `Floor on cash`;
   if(bid==='box-savings') return `As of <b>${fmtDay(asOfDate())}</b> · Liquid <b>${F$(p.cash+p.brok)}</b> · Total <b>${F$(p.cash+p.brok+p.retire)}</b>`;
   if(bid==='box-income') return `Take-home <b>${F$(p.bank)}</b>/mo · Invested <b>${F$(p.bdd+p.contrib/12)}</b>/mo`;
   if(bid==='box-exp') return `<b>${F$(livingOf(p))}</b>/mo plus housing`;
@@ -1786,12 +1799,28 @@ function leaseHTML(editing){
     <div class="lt-note">All three paths share the first two stages. In <b id="lt-t"></b> Rent moves into the house with a yard, Buy closes, and Van leaves. After the road, the van path rents the house with a yard.</div>`;
   setTimeout(leaseDates,0); return html;
 }
+function efFloors(){
+  if(!A) return {};
+  const R=A.R, at=(r,i)=>{ const x=r.months[Math.max(0,Math.min(i,r.M-1))]; return x ? B(A.p,x.efTgt||0,Math.max(1,Math.min(i,r.M-1))) : 0; };
+  const v=R.van, back=v.vS+v.roadM+(A.p.gap||0);
+  return {rent:`${M$(at(R.rent,1))} now · ${M$(at(R.rent,R.rent.T))} from ${mon(R.rent.T)}`,
+          buy:`${M$(at(R.buy,1))} before closing · ${M$(at(R.buy,R.buy.T))} once you own`,
+          van:`${M$(at(v,1))} until you leave · spendable on the road · ${M$(at(v,back))} from ${mon(back)}`};
+}
+function updateEfFloors(){ const fl=efFloors(); document.querySelectorAll('[data-eff]').forEach(e=>{ e.textContent=fl[e.dataset.eff]||''; }); }
+function efHTML(editing){
+  const flds=BOXES['box-ef'].fields, fl=efFloors();
+  const row=(id,key)=>{ const fld=flds.find(x=>x[0]===id); return `<div class="ef-r"><div class="l"><b>${fld[1]}</b>${key?`<small data-eff="${key}">${fl[key]||''}</small>`:(fld[4]?`<small>${fld[4]}</small>`:'')}</div>${editing?inpHTML(id,P[id]):`<span class="v">${show(id,P[id])}</span>`}</div>`; };
+  return `<p class="ef-lede">The least you keep in cash, in months of housing + bare-bones spending. Cash above the floor goes to brokerage; purchases and short months come out of brokerage first, so the floor is only touched once brokerage is empty.</p>
+    ${row('essentials')}<div class="ef-h">Months kept, by path</div>${row('efRent','rent')}${row('efBuy','buy')}${row('efVan','van')}`;
+}
 function renderBox(bid){
   const b=BOXES[bid], el=document.getElementById(bid), editing=!!EDIT[bid];
   el.classList.toggle('editing',editing);
   const btns = READONLY ? '' : editing ? `<button class="btn" data-act="cancel">Cancel</button><button class="btn pri" data-act="save">Save</button>` : `<button class="btn" data-act="edit">Edit</button>`;
   let h=`<div class="box-h"><h3>${b.sq?`<i class="sq" style="background:${b.sq}"></i>`:''}${b.title}</h3><div class="right"><span class="tot" data-tot>${headTotal(bid)}</span>${btns}</div></div>`;
   if(b.stages){ h+=leaseHTML(editing); }
+  else if(b.ef){ h+=efHTML(editing); }
   else if(!editing){
     h+=`<div class="vlist${b.people?' one':''}">`+b.fields.map(([id,l,d,u])=>{
       if(u==='sel') return `<div class="vrow"><span class="l">${l}</span><span class="v">${P.after==='buy'?'Buy the house':'Rent again'}</span></div>`;
@@ -2227,7 +2256,7 @@ function renderNav(){
   ['rent','buy','van'].forEach(k=>{ document.querySelector(`[data-nv="${k}"]`).textContent=M$(B(p,A.R[k].end.nw,A.R[k].end.m)); document.querySelector(`[data-nm="${k}"]`).textContent=N[k]; });
   document.getElementById('meta').innerHTML = `Today ${fmtDay(new Date())} · balances as of ${fmtDay(asOfDate())}<br>Net worth shown at end of ${START_YEAR+A.R.rent.H-1}`;
 }
-function recompute(){ A=computeAll(P); if(!Object.keys(EDIT).length) save(); renderNav(); renderHomesNav(); renderTab(); if(XSTACK.length) renderX(); }
+function recompute(){ A=computeAll(P); if(!Object.keys(EDIT).length) save(); renderNav(); renderHomesNav(); renderTab(); if(XSTACK.length) renderX(); if(TAB==='inputs') updateEfFloors(); }
 let _t=null; function recomputeSoon(){ clearTimeout(_t); _t=setTimeout(recompute,120); }
 function renderTab(){ if(TAB==='summary') renderSummary(); else if(TAB==='rent') renderRent(); else if(TAB==='buy') renderBuy(); else if(TAB==='van') renderVan(); else if(TAB==='cash') renderCash(); else if(TAB==='now') renderNow(); else if(TAB==='homes') renderHomes(); }
 function setTab(t){
@@ -2280,7 +2309,7 @@ function renderNow(){
     ['Saving rate',pct(rate),chip(`${F$(saveMo)}/mo`,'up'),'',kx('savenow')],
   ]);
   // where it sits
-  const rows=[['Emergency fund','cash','--c-cash'],['Brokerage','brok','--c-brok'],['Retirement','retire','--c-ret']];
+  const rows=[['Cash','cash','--c-cash'],['Brokerage','brok','--c-brok'],['Retirement','retire','--c-ret']];
   document.getElementById('n-where-sub').textContent = solo ? `${whoName(W)} · both of you in the table` : `${PEOPLE[0]} and ${PEOPLE[1]}`;
   document.getElementById('n-bar').innerHTML = rows.map(([l,k,c])=>p[k]>0?`<div style="flex:${p[k]/nw} 1 0;background:var(${c});${c==='--c-cash'?'color:#1b2440':''}" title="${l}: ${F$(p[k])}">${p[k]/nw>0.12?l+' '+M$(p[k]):''}</div>`:'').join('');
   const pp=k=>P.pp[k]||[P[k],0], tot=[0,1].map(w=>rows.reduce((a,[l,k])=>a+pp(k)[w],0)), hc=i=>solo&&+W===i?' style="color:var(--ink);font-weight:700"':(solo?' style="color:var(--muted)"':'');
@@ -2300,14 +2329,14 @@ function renderNow(){
   // between now and the decision
   const LE=r.LE, T=r.T, at=m=>{ const x=r.all[Math.min(m,r.M)]; return {nw:B(A0,x.nw,x.m), liq:B(A0,x.liq,x.m), cash:B(A0,x.cash,x.m), brok:B(A0,x.brok,x.m)}; };
   document.getElementById('n-path-sub').textContent = `${solo?'Household · ':''}The three paths are identical until ${mon(T)}`;
-  const hnw=P.cash+P.brok+P.retire, hliq=P.cash+P.brok, split=o=>`Emergency fund ${M$(o.cash)} · brokerage ${M$(o.brok)}`;
+  const hnw=P.cash+P.brok+P.retire, hliq=P.cash+P.brok, split=o=>`Cash ${M$(o.cash)} · brokerage ${M$(o.brok)}`;
   const step=(k,dt,v,sub,x)=>`<div class="n-step"><div class="k">${k}</div><div class="d">${dt}</div><div class="v">${XK(x,M$(v))}</div><div class="s">${sub}</div></div>`;
   const nwT=at(T).nw, liqT=at(T).liq;
   document.getElementById('n-steps').innerHTML =
     step('Today',fmtDay(d),hnw,split(P),'nwnow:b')+
     step('Lease ends',monEnd(LE),at(LE).nw,`${split(at(LE))} · +${M$(at(LE).nw-hnw)} from today`,`nw:rent:${LE}`)+
     step('Paths split',`${mon(T)}: rent moves, buy closes, van leaves`,nwT,`${split(at(T))} · +${M$(nwT-hnw)} from today`,`nw:rent:${T}`);
-  document.getElementById('n-steps').insertAdjacentHTML('beforeend',`<div class="up-note" style="grid-column:1/-1;margin-top:4px">Your emergency fund holds ${P.efRent} months of rent + bare-bones spending (${M$(r.months[Math.min(1,r.M-1)].efTgt)} now) in a money market; everything above it goes to brokerage each month. On the buy path it’s ${P.efBuy} months; on the van path it can be spent on the road. Change these under Assumptions → Markets, cash + horizon.</div>`);
+  document.getElementById('n-steps').insertAdjacentHTML('beforeend',`<div class="up-note" style="grid-column:1/-1;margin-top:4px">Cash keeps an emergency fund floor of ${P.efRent} months of rent + bare-bones spending (${M$(r.months[Math.min(1,r.M-1)].efTgt)} now); cash above it goes to brokerage each month. Set it under Assumptions → Emergency fund.</div>`);
 }
 /* =================== cash flow statement =================== */
 let CF = (()=>{ try{ return Object.assign({k:'rent',per:'y',yr:0}, JSON.parse(store.get('homeOrRoad.cf')||'{}')); }catch(e){ return {k:'rent',per:'y',yr:0}; } })();
@@ -2340,13 +2369,14 @@ function cfLines(run){
     ['Van sale, net of loan', x=>x.oneSale],
     ['sec','Saving + investing'],
     ['Brokerage direct deposits', x=>x.bdd],
-    ['Surplus moved to brokerage (fund top-ups negative)', x=>x.sweep],
+    ['Cash moved to brokerage (top-ups negative)', x=>x.sweep],
     ['Pulled from brokerage', (x,i)=>-(x.brokDraw+(i===0?run.draw0:0))],
     ['Retirement contributions', x=>x.contrib],
     ['Money market interest', x=>x.cashGrowth],
     ['Investment growth', x=>x.brokGrowth+x.retGrowth],
     ['sec','Balances, end of period'],
-    ['Emergency fund (money market)', x=>x.cash, 'bal'],
+    ['Cash', x=>x.cash, 'bal'],
+    ['memo','Emergency fund floor', x=>x.efTgt||0, 'bal'],
     ['Brokerage', x=>x.brok, 'bal'],
     ['Retirement', x=>x.retire, 'bal'],
     ['Home value', x=>x.home, 'bal'],
@@ -2355,7 +2385,7 @@ function cfLines(run){
     ['Van, less loan', x=>x.van-x.vanBal, 'bal'],
     ['grand','Net worth', x=>x.nw, 'bal'],
   ];
-  return L.map(l=> l[0]==='sec' ? {sec:l[1]} : (l[0]==='tot'||l[0]==='grand') ? {cls:l[0], l:l[1], fn:l[2], bal:l[3]==='bal'} : {l:l[0], fn:l[1], bal:l[2]==='bal'})
+  return L.map(l=> l[0]==='sec' ? {sec:l[1]} : (l[0]==='tot'||l[0]==='grand'||l[0]==='memo') ? {cls:l[0], l:l[1], fn:l[2], bal:l[3]==='bal'} : {l:l[0], fn:l[1], bal:l[2]==='bal'})
           .filter(o=> o.sec || o.cls || run.months.some((x,i)=>Math.abs(o.fn(x,i))>0.5));
 }
 function phaseOf(run,i){ const x=run.months[i]; if(i<run.LE) return 'Lease'; if(i<run.T) return 'Month-to-month'; if(x.onRoad) return 'Road'; if(x.inGap) return 'Job search'; if(x.pi>0) return 'Owning'; return 'Renting'; }
@@ -2384,7 +2414,7 @@ function renderCash(){
   document.getElementById('cf-table').innerHTML = `<thead><tr><th>${CF.per==='y'?'Year':String(CF.yr)}</th>${cols.map(c=>`<th class="${c.tot?'tc':''}">${c.h}${c.ph?`<span class="ph ${c.act?'act':''}">${c.ph}</span>`:''}</th>`).join('')}</tr></thead><tbody>`+
     lines.map(o=> o.sec ? `<tr class="sec"><td>${o.sec}</td>${cols.map(c=>`<td class="${c.tot?'tc':''}"></td>`).join('')}</tr>`
       : `<tr class="${o.cls||''}"><td>${o.l}</td>${cols.map(c=>{ const v=val(o,c); return `<td class="${c.tot?'tc ':''}${v<-0.5&&(o.cls==='grand'||o.l==='Cash'||o.l==='Brokerage')?'neg':''}">${fmt(v)}</td>`; }).join('')}</tr>`).join('')+'</tbody>';
-  document.getElementById('cf-note').innerHTML = `Future dollars. Parentheses are money going out. Net income = total income − total expenses; positive net income stays in checking, and anything above your emergency fund target is moved to brokerage. When net income is negative or a one-time cost is due, the money comes from brokerage first (“Pulled from brokerage”); the emergency fund is only used once brokerage is empty. ${CF.per==='m'?'The small label under each month is what’s happening then.':'Balances are at the end of each year.'}`;
+  document.getElementById('cf-note').innerHTML = `Future dollars. Parentheses are money going out. Net income = total income − total expenses; positive net income stays in checking, and cash above your emergency fund floor is moved to brokerage. When net income is negative or a one-time cost is due, the money comes from brokerage first (“Pulled from brokerage”); cash below the floor is only used once brokerage is empty. ${CF.per==='m'?'The small label under each month is what’s happening then.':'Balances are at the end of each year.'}`;
   document.getElementById('cf-csv').onclick=()=>{
     const q=v=>/[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v;
     const head=[CF.per==='y'?'Line':String(CF.yr),...cols.map(c=>c.h+(c.ph&&CF.per==='m'?` (${c.ph})`:''))];
@@ -2469,8 +2499,8 @@ const COLDEF = {
   'Income':'Paychecks that hit checking (including any brokerage deposit redirected there), plus side income, plus the mortgage tax refund in April if you own.',
   'Housing':'Rent, or everything it costs to own: mortgage, property tax, insurance, maintenance, HOA, PMI.',
   'Cars, ins., other':'Cars, insurance and other recurring spending. Grows with inflation.',
-  'Net income':'Income minus housing and spending. A positive amount stays in checking, and anything above your cash cushion is moved to brokerage. A negative amount comes out of brokerage first, then the emergency fund.',
-  'To brokerage':'Direct deposits plus anything above your emergency fund target (negative when brokerage tops the fund back up).',
+  'Net income':'Income minus housing and spending. A positive amount stays in cash, and anything above your emergency fund floor is moved to brokerage. A negative amount comes out of brokerage first, then the emergency fund.',
+  'To brokerage':'Direct deposits plus cash above your emergency fund floor (negative when brokerage tops cash back up to the floor).',
   'To retirement':'401(k)/IRA contributions, including the match. Grows with your raises.',
   'Mortgage P+I':'Principal and interest on the mortgage. Fixed for 30 years.',
   'Other home costs':'Property tax, homeowners insurance, maintenance, HOA, extra utilities and PMI.',
@@ -2577,7 +2607,7 @@ XP.bdd = k => {
     if(r.kind==='rent' && r.buyM!==null) notes.push(`From ${mon(r.buyM)}, when you buy, it drops to ${pctS(p.bddOwn)} of the deposit.`);
   }
   notes.push(`Deposits grow with your raises (${pctS(p.raise)}/yr).`);
-  if(sw>0) notes.push(`On top of this, checking surplus above your emergency fund is moved to brokerage: ${F$(sw)} in ${yF.year}.`);
+  if(sw>0) notes.push(`On top of this, cash above your emergency fund floor is moved to brokerage: ${F$(sw)} in ${yF.year}.`);
   return {eb:nm(k), t:'Invested in brokerage per month', v:F$(v)+'/mo', sub:r.kind==='van'?'while on the road':'January 2027',
     what:'Your automatic brokerage direct deposit. It is separate from take-home, so it never touches checking.', steps, notes,
     table:ytable(r,[['Direct deposits',x=>x.bdd],['From checking',x=>x.sweep],['Total',x=>x.bdd+x.sweep]])};
@@ -2612,10 +2642,10 @@ XP.endB = k => {
   if(rows.length) rows[0][3]+=r.draw0;
   const nom=x=>r.months.reduce((a,m)=>a+m[x],0);
   return {eb:nm(k), t:`Brokerage, end of ${E}`, v:M$(end), sub:DOL(),
-    what:`Starts with what you have today. Your automatic deposits go in, and so does whatever's left in checking each month once the emergency fund is full. Money comes out for purchases and any month you run short. The balance earns ${pctS(p.ret)} a year, compounded monthly.${REAL?" Every line is in today's dollars as of when it happens, the same as the table on the Summary.":''}`,
+    what:`Starts with what you have today. Your automatic deposits go in, and so does whatever's left in cash each month above your emergency fund floor. Money comes out for purchases and any month you run short. The balance earns ${pctS(p.ret)} a year, compounded monthly.${REAL?" Every line is in today's dollars as of when it happens, the same as the table on the Summary.":''}`,
     steps:[{l:'Brokerage today',v:start,x:'in:brok'},
       {op:'+',l:'Direct deposits',f:'Automatic deposits from your paychecks',v:dep,x:'bdd:'+k},
-      {op:'+',l:'Surplus moved from checking',f:'Paycheck left after bills and after the emergency fund is full, minus any top-ups of the fund',v:sw,x:'endC:'+k},
+      {op:'+',l:'Surplus moved from checking',f:'Paycheck left after bills, above the emergency fund floor, minus any top-ups back to the floor',v:sw,x:'endC:'+k},
       {op:'−',l:'Withdrawals',f:wl,v:wd},
       {op:'+',l:REAL?'Market growth, after inflation':'Market growth',f:REAL?`${pctS(p.ret)}/yr on the balance, less ${pctS(p.infl)} inflation`:`${pctS(p.ret)}/yr on the balance each month`,v:gr,x:'in:ret'},
       {op:'=',l:`Brokerage, end of ${E}`,f:DOL(),v:end,cls:'total'}],
@@ -2634,11 +2664,11 @@ XP.endR = k => {
 XP.endC = k => {
   const p=A.p, r=RUN(k), e=r.end, E=ENDY(), tgt=e.efTgt||0, rc=Math.pow(1+p.cashY/100,1/12)-1, full=tgt>0 && e.cash>=tgt*(1+rc)-1, mo=efMonths(r.kind,p,e.home>0,e.onRoad);
   const steps = full
-    ? [{l:`Housing, Dec ${E}`,v:e.housing},{op:'+',l:'Bare-bones spending',f:`${F$(p.essentials)}/mo today, grown with inflation`,v:tgt/mo-e.housing,x:'in:essentials'},{op:'×',l:'Months in the emergency fund',v:mo,fmt:'n',x:r.kind==='buy'||e.pi>0?'in:efBuy':r.kind==='van'?'in:efVan':'in:efRent'},{op:'=',l:'Emergency fund target',v:tgt,cls:'sub'},{op:'×',l:'Plus one month of money market interest',f:`${pctS(p.cashY)}/yr`,v:1+rc,fmt:'x',x:'in:cashY'},{op:'=',l:`Emergency fund, end of ${E}`,v:e.cash,cls:'sub'},...toToday(p,e.cash,e.m)]
-    : [{l:`Emergency fund, end of ${E}`,f:tgt>0?`Below the target (${F$(tgt)}) because brokerage ran out`:'No emergency fund target at this point',v:e.cash,cls:'sub'},...toToday(p,e.cash,e.m)];
-  return {eb:nm(k), t:`Emergency fund, end of ${E}`, v:M$(B(p,e.cash,e.m)), sub:DOL(),
-    what:`Held in a money market: ${p.efRent} months on the rent path, ${p.efBuy} months when you own, and ${p.efVan} months on the van path once you're back (on the road it can be spent). A month means housing plus bare-bones spending (${F$(p.essentials)}/mo today), not your full lifestyle. Anything above the target goes to brokerage; when the target rises, brokerage tops it up. Purchases and short months come out of brokerage first.`, steps,
-    table:ytable(r,[['Moved to brokerage (top-ups negative)',x=>x.sweep],['Target',x=>x.efTgt,'end'],['Emergency fund, year end',x=>x.cash,'end']])};
+    ? [{sep:'Emergency fund floor'},{l:`Housing, Dec ${E}`,v:e.housing},{op:'+',l:'Bare-bones spending',f:`${F$(p.essentials)}/mo today, grown with inflation`,v:tgt/mo-e.housing,x:'in:essentials'},{op:'×',l:'Months in the emergency fund',v:mo,fmt:'n',x:r.kind==='buy'||e.pi>0?'in:efBuy':r.kind==='van'?'in:efVan':'in:efRent'},{op:'=',l:'Floor',v:tgt,cls:'sub'},{sep:'Cash'},{l:'Cash kept at the floor',v:tgt},{op:'×',l:'Plus one month of interest',f:`${pctS(p.cashY)}/yr`,v:1+rc,fmt:'x',x:'in:cashY'},{op:'=',l:`Cash, end of ${E}`,v:e.cash,cls:'sub'},...toToday(p,e.cash,e.m)]
+    : [{l:`Cash, end of ${E}`,f:tgt>0?`Below the ${F$(tgt)} floor because brokerage ran out`:'No emergency fund floor at this point',v:e.cash,cls:'sub'},...toToday(p,e.cash,e.m)];
+  return {eb:nm(k), t:`Cash, end of ${E}`, v:M$(B(p,e.cash,e.m)), sub:DOL(),
+    what:`Cash sits in a money market and keeps an emergency fund floor: ${p.efRent} months on the rent path, ${p.efBuy} months when you own, and ${p.efVan} months on the van path once you're back (on the road it can be spent). A month means housing plus bare-bones spending (${F$(p.essentials)}/mo today), not your full lifestyle. Cash above the floor goes to brokerage; when the floor rises, brokerage tops cash back up. Purchases and short months come out of brokerage first.`, steps,
+    table:ytable(r,[['Moved to brokerage (top-ups negative)',x=>x.sweep],['Floor',x=>x.efTgt,'end'],['Cash, year end',x=>x.cash,'end']])};
 };
 
 XP.liq = k => { const p=A.p, r=RUN(k), e=r.end;
@@ -2653,7 +2683,7 @@ XP.low = k => { const p=A.p, r=RUN(k), ml=r.minLiq;
 
 XP.nw = (k, m) => {
   const p=A.p, r=RUN(k); m = m!==undefined ? Math.min(r.M,+m) : r.M; const s=r.all[m], atEnd=m===r.M, yr=m<=0?'today':((T0M+m)%12===0?String(yrOfM(m-1)):monEnd(m));
-  const steps=[{l:'Emergency fund',v:s.cash,x:atEnd?'endC:'+k:null},{op:'+',l:'Brokerage',v:s.brok,x:atEnd?'endB:'+k:null},{op:'+',l:'Retirement',v:s.retire,x:atEnd?'endR:'+k:null}];
+  const steps=[{l:'Cash',v:s.cash,x:atEnd?'endC:'+k:null},{op:'+',l:'Brokerage',v:s.brok,x:atEnd?'endB:'+k:null},{op:'+',l:'Retirement',v:s.retire,x:atEnd?'endR:'+k:null}];
   if(s.home>0) steps.push({op:'+',l:'Home equity, after selling costs',v:s.equity,x:`eq:${k}:${m}`});
   if(s.van>0) steps.push({op:'+',l:'Van, less any loan',f:'Loses value evenly until you sell it',v:s.van-s.vanBal});
   steps.push({op:'=',l:`Net worth, end of ${yr}`,f:'Future dollars',v:s.nw,cls:'sub'},...toToday(p,s.nw,m));
@@ -2704,7 +2734,7 @@ XP.run = () => {
   const rows=v.months.slice(0,until).map((x,i)=>[mon(i)+(x.pre?' · working':x.onRoad?' · road':x.inGap?' · job search':''), x.road+x.vanLoan+x.housing+x.living, x.bank+x.side+x.taxRef, x.liq]);
   const txt = A.runway===Infinity ? 'Whole trip' : (v.firstNeg.m<=v.vanIdx?'Not covered':`${A.runway} of ${v.roadM} mo`);
   return {eb:nm('van'), t:'Do savings cover the trip?', v:txt, sub:A.runway===Infinity?`low point ${M$(B(p,ml.liq,ml.m))}, ${monEnd(ml.m)}`:'',
-    what:`Tracks cash + brokerage month by month. Road costs come out of brokerage first, then the emergency fund, and whatever's left keeps earning. If the balance never goes below zero before paychecks restart, savings cover the trip.`,
+    what:`Tracks cash + brokerage month by month. Road costs come out of brokerage first, then cash, and whatever's left keeps earning. If the balance never goes below zero before paychecks restart, savings cover the trip.`,
     steps:[{l:'Cash + brokerage today',v:p.cash+p.brok,x:'in:cash'},
       ...(v.vS>0?[{op:'+',l:`Saved while working until ${mon(v.vS)}`,f:`${v.vS} more months of paychecks and deposits (lease + month-to-month), plus growth`,v:hv-(p.cash+p.brok),x:'in:leaseEnd'},{op:'=',l:'When you buy the van',v:hv,cls:'sub'}]:[]),
       ...(p.carSale>0?[{op:'+',l:'Car sold',v:p.carSale,x:'in:carSale'}]:[]),
@@ -2793,7 +2823,7 @@ XP.ab = (k, m) => { const r=RUN(k); m = m===undefined ? r.firstM : +m; const x=r
   if(x.vanLoan) steps.push({op:'−',l:'Van loan',v:x.vanLoan,x:'vl'});
   steps.push({op:'=',l:'Net income',v:x.bankNet,cls:'total'});
   return {eb:nm(k), t:`Net income, ${mon(m)}`, v:(x.bankNet<0?'−':'+')+F$(Math.abs(x.bankNet))+'/mo',
-    what: x.bankNet<0 ? 'Checking comes up short this month, so the model covers the gap from brokerage first, then the emergency fund.' : 'This stays in checking. Once it’s above your emergency fund target, the extra is moved to brokerage.', steps}; };
+    what: x.bankNet<0 ? 'Checking comes up short this month, so the model covers the gap from brokerage first, then cash.' : 'This stays in checking. Once cash is above your emergency fund floor, the extra is moved to brokerage.', steps}; };
 
 XP.cs = (c, k) => {
   const p=A.p, q=c==='D'?downside(p):upside(p), r=(c==='D'?A.D:A.U)[k], base=A.R[k];
@@ -2821,7 +2851,7 @@ XP.cl = k => {
   const p=A.p, r=RUN(k); if(r.buyM===null) return null;
   const liq0=r.preClose, left=liq0-r.cashAtClose;
   return {eb:nm(k), t:'Cash to close + renovation', v:M$(r.cashAtClose), sub:mon(r.buyM),
-    what:'Everything you pay at or right after closing. It comes out of brokerage first; the emergency fund is only used if brokerage runs out.',
+    what:'Everything you pay at or right after closing. It comes out of brokerage first; cash is only used if brokerage runs out.',
     steps:[{l:'Purchase price',f:r.buyM>0?`${F$(p.price)} grown ${pctS(p.app)}/yr until ${mon(r.buyM)}`:'Your input',v:r.price0,x:'in:price'},
       {sep:'At closing'},
       {l:`Down payment`,f:`Price × ${pctS(p.down)}`,v:r.down0,x:'in:down'},
