@@ -1167,12 +1167,13 @@ function renderSummary(){
     <dl>${rows.map(r=>`<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('')}</dl></div>`; };
   const cum = k => R[k].months.reduce((a,x)=>a+x.saved/dfl(p,x.m-1),0);
   const rf=R.rent.first, bf=R.buy.first;
-  const inv = f => F$(f.bdd+f.contrib)+'/mo', left = f => f.bankNet<0 ? '<span style="color:var(--neg)" title="Covered from brokerage">Short '+F$(-f.bankNet)+'/mo</span>' : '<span title="Take-home minus housing and spending">+'+F$(f.bankNet)+'/mo</span>';
-  const endInv = k => M$(B(p,R[k].end.brok+R[k].end.retire,R[k].end.m));
+  const mo = x => F$(x)+'/mo', vf=R.van.first;
+  const endB = k => M$(B(p,R[k].end.brok,R[k].end.m)), endR = k => M$(B(p,R[k].end.retire,R[k].end.m));
+  const cRows = (k,f,first) => [first,['Invested (brokerage)',mo(f.bdd)],['Invested (retirement)',mo(f.contrib)],[`Brokerage, end of ${E}`,endB(k)],[`Retirement, end of ${E}`,endR(k)]];
   document.getElementById('s-cards').innerHTML =
-    card('rent',[['Housing, 2027',F$(rf.housing)+'/mo'],['Invested, 2027',inv(rf)],['After bills, 2027',left(rf)],[`Investments, end of ${E}`,endInv('rent')]]) +
-    card('buy',[['Housing, 2027',F$(bf.housing)+'/mo'],['Invested, 2027',inv(bf)],['After bills, 2027',left(bf)],[`Investments, end of ${E}`,endInv('buy')]]) +
-    card('van',[['Burn on the road',F$(A.vanBurn)+'/mo'],['Invested on the road','$0/mo'],['Trip out of pocket',M$(A.vanOOP)],[`Investments, end of ${E}`,endInv('van')]]);
+    card('rent',cRows('rent',rf,['Expenses','<span title="Rent + cars, insurance, other">'+mo(rf.housing+rf.living)+'</span>'])) +
+    card('buy',cRows('buy',bf,['Expenses','<span title="Mortgage, tax, insurance, upkeep + cars, insurance, other">'+mo(bf.housing+bf.living)+'</span>'])) +
+    card('van',cRows('van',vf,['Burn on the road',mo(A.vanBurn)]));
   document.querySelectorAll('#s-cards [data-go]').forEach(c=>{ c.onclick=()=>setTab(c.dataset.go); c.onkeydown=e=>{ if(e.key==='Enter') setTab(c.dataset.go); }; });
   // NW chart
   document.getElementById('s-lg').innerHTML = ks.map(k=>`<span><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</span>`).join('');
