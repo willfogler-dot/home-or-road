@@ -1167,11 +1167,11 @@ function renderSummary(){
     <dl>${rows.map(r=>`<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('')}</dl></div>`; };
   const cum = k => R[k].months.reduce((a,x)=>a+x.saved/dfl(p,x.m-1),0);
   const rf=R.rent.first, bf=R.buy.first;
-  const inv = f => F$(f.bdd+f.contrib)+'/mo', left = f => (f.bankNet<0?'<span style="color:var(--neg)">':'<span>')+F$(f.bankNet)+'/mo</span>';
+  const inv = f => F$(f.bdd+f.contrib)+'/mo', left = f => f.bankNet<0 ? '<span style="color:var(--neg)" title="Covered from brokerage">Short '+F$(-f.bankNet)+'/mo</span>' : '<span title="Take-home minus housing and spending">+'+F$(f.bankNet)+'/mo</span>';
   const endInv = k => M$(B(p,R[k].end.brok+R[k].end.retire,R[k].end.m));
   document.getElementById('s-cards').innerHTML =
-    card('rent',[['Housing, 2027',F$(rf.housing)+'/mo'],['Invested, 2027',inv(rf)],['Left in bank, 2027',left(rf)],[`Investments, end of ${E}`,endInv('rent')]]) +
-    card('buy',[['Housing, 2027',F$(bf.housing)+'/mo'],['Invested, 2027',inv(bf)],['Left in bank, 2027',left(bf)],[`Investments, end of ${E}`,endInv('buy')]]) +
+    card('rent',[['Housing, 2027',F$(rf.housing)+'/mo'],['Invested, 2027',inv(rf)],['After bills, 2027',left(rf)],[`Investments, end of ${E}`,endInv('rent')]]) +
+    card('buy',[['Housing, 2027',F$(bf.housing)+'/mo'],['Invested, 2027',inv(bf)],['After bills, 2027',left(bf)],[`Investments, end of ${E}`,endInv('buy')]]) +
     card('van',[['Burn on the road',F$(A.vanBurn)+'/mo'],['Invested on the road','$0/mo'],['Trip out of pocket',M$(A.vanOOP)],[`Investments, end of ${E}`,endInv('van')]]);
   document.querySelectorAll('#s-cards [data-go]').forEach(c=>{ c.onclick=()=>setTab(c.dataset.go); c.onkeydown=e=>{ if(e.key==='Enter') setTab(c.dataset.go); }; });
   // NW chart
@@ -1207,7 +1207,7 @@ function renderSummary(){
     ['sec','Monthly cash flow, 2027'],
     ['Take-home (hits bank)', k=>F$(R[k].first.bank+R[k].first.taxBen+R[k].first.side)],
     ['Housing', k=>R[k].first.onRoad?'–':F$(R[k].first.housing)],
-    ['Left in bank (burned)', k=>F$(R[k].first.bankNet), k=>R[k].first.bankNet<0?'neg':''],
+    ['After bills (short)', k=>F$(R[k].first.bankNet), k=>R[k].first.bankNet<0?'neg':''],
     ['Brokerage deposits', k=>F$(R[k].first.bdd)],
     ['Retirement contributions', k=>F$(R[k].first.contrib)],
     ['sec','Investments, end of '+E],
@@ -1383,7 +1383,7 @@ function renderRent(){
     <p><b>Option value.</b> Liquidity means you can still buy or take the trip later. ${later?'':'Try "Buy in 2029" above to see the rent-first version.'}</p>`;
   document.getElementById('r-tsum').textContent = `${REAL?"Today's":'Future'} dollars, year by year · take-home, where it goes, and every account balance`;
   annualTable(document.getElementById('r-table'), r, [
-    ['Take-home',y=>y.income],['Housing',y=>y.housing],['Cars, ins., other',y=>y.living],['Left in bank',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
+    ['Take-home',y=>y.income],['Housing',y=>y.housing],['Cars, ins., other',y=>y.living],['After bills',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
     ['Cash',y=>y.cash,'bal'],['Brokerage',y=>y.brok,'bal'],['Retirement',y=>y.retire,'bal'],...(later?[['Home equity',y=>y.equity,'bal']]:[]),['Net worth',y=>y.nw,'bal',1]]);
 }
 
@@ -1439,7 +1439,7 @@ function renderBuy(){
   hbars(document.getElementById('b-uc'),[...oc.rows.map(([l,v])=>[l,v,v<0?'var(--pos)':'var(--buy)']),['Net cost of owning',oc.own,'var(--buy)','total'],['Rent you’d pay instead',oc.rent,'var(--rent)','total']],{fmt:v=>(v<0?'−':'')+M$(Math.abs(v))});
   document.getElementById('b-lg2').innerHTML = stackChart('c-b-comp', b, [COMP.retire,COMP.brok,COMP.cash,COMP.equity]);
   annualTable(document.getElementById('b-table'), b, [
-    ['Take-home',y=>y.income],['Mortgage P+I',y=>y.pi],['Other home costs',y=>y.housing-y.pi],['Cars, ins., other',y=>y.living],['Left in bank',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
+    ['Take-home',y=>y.income],['Mortgage P+I',y=>y.pi],['Other home costs',y=>y.housing-y.pi],['Cars, ins., other',y=>y.living],['After bills',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
     ['Home value',y=>y.home,'bal'],['Loan',y=>y.mort,'bal'],['Equity',y=>y.equity,'bal'],['Cash',y=>y.cash,'bal'],['Brokerage',y=>y.brok,'bal'],['Retirement',y=>y.retire,'bal'],['Net worth',y=>y.nw,'bal',1]]);
 }
 
@@ -1493,7 +1493,7 @@ function renderVan(){
     <p><b>Re-entry pay is the lever.</b> Coming back at 100% instead of ${p.returnPct}% is worth ${M$(Math.abs(B(p,full.end.nw-v.end.nw,v.end.m)))} by ${E}. Staying employable matters more than trimming the road budget.</p>
     <p><b>Compounding.</b> Money not invested in the trip years never gets its ${H}-year run, so the gap keeps widening after you're back.</p>`;
   annualTable(document.getElementById('v-table'), v, [
-    ['Take-home',y=>y.income],['Road + van loan',y=>y.road],['Housing',y=>y.housing],['Cars, ins., other',y=>y.living],['Left in bank (burned)',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
+    ['Take-home',y=>y.income],['Road + van loan',y=>y.road],['Housing',y=>y.housing],['Cars, ins., other',y=>y.living],['After bills (short)',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
     ['Cash',y=>y.cash,'bal'],['Brokerage',y=>y.brok,'bal'],['Van (net)',y=>y.van,'bal'],...(p.after==='buy'?[['Home equity',y=>y.equity,'bal']]:[]),['Retirement',y=>y.retire,'bal'],['Net worth',y=>y.nw,'bal',1]]);
 }
 
