@@ -616,7 +616,8 @@ table.nw-t{width:100%;font-size:13px}
 
   <!-- TODAY -->
   <section class="tab" id="tab-now" hidden>
-    <header class="hero"><div class="eyebrow" id="n-eb"></div><h1 class="thesis" id="n-thesis"></h1><p class="lede" id="n-lede"></p></header>
+    <header class="hero"><div class="eyebrow" id="n-eb"></div><h1 class="thesis" id="n-thesis"></h1><p class="lede" id="n-lede"></p>
+      <div class="hero-ctl"><div class="seg" id="n-who" role="group" aria-label="Whose numbers"><button data-w="b">Both</button><button data-w="0">Will</button><button data-w="1">Megan</button></div></div></header>
     <div class="kpis" id="n-kpis"></div>
     <div class="grid g2">
       <div class="card"><div class="card-h"><h2>Where it sits</h2><span class="sub" id="n-where-sub"></span></div>
@@ -2216,49 +2217,62 @@ try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rethem
 new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
 /* =================== today =================== */
+let NOW_WHO = ['b','0','1'].includes(store.get('homeOrRoad.who')) ? store.get('homeOrRoad.who') : 'b';
+// one person's view of today's numbers; household-only inputs (rent) are split 50/50
+function pv(w){
+  if(w==='b'||w===undefined) return P;
+  const i=+w, o=Object.assign({},P);
+  ['cash','brok','retire','bank','bdd','contrib','car','ins','other','gross'].forEach(k=>{ o[k] = P.pp[k] ? P.pp[k][i] : P[k]/2; });
+  o.rentNow=(P.rentNow>0?P.rentNow:P.rent)/2; o.rent=P.rent/2; return o;
+}
+const whoName = w => w==='b' ? 'Household' : PEOPLE[+w];
 function renderNow(){
-  const p=P, A0=A.p, r=A.R.rent, N=NAME(A0), d=asOfDate();
+  document.querySelectorAll('#n-who button').forEach(b=>{ b.setAttribute('aria-pressed',b.dataset.w===NOW_WHO); b.onclick=()=>{ NOW_WHO=b.dataset.w; store.set('homeOrRoad.who',NOW_WHO); renderNow(); }; });
+  const W=NOW_WHO, solo=W!=='b';
+  const p=pv(W), A0=A.p, r=A.R.rent, N=NAME(A0), d=asOfDate();
   const liq=p.cash+p.brok, nw=liq+p.retire;
   const rentNow = p.rentNow>0 ? p.rentNow : p.rent, spend = rentNow+livingOf(p), net = p.bank-spend;
-  const saveMo = p.bdd + p.contrib/12 + Math.max(0,net), rate = saveMo/(p.bank+p.bdd+p.contrib/12)*100;
+  const saveMo = p.bdd + p.contrib/12 + Math.max(0,net), rate = saveMo/(p.bank+p.bdd+p.contrib/12)*100, kx=k=>`${k}:${W}`;
   const age=Math.floor((parseISO(todayISO())-d)/864e5);
-  document.getElementById('n-eb').textContent = `Today · ${fmtDay(new Date())}`;
-  document.getElementById('n-thesis').innerHTML = `You're worth ${XK('nwnow',`<em class="hl-rent">${M$(nw)}</em>`)} today, with no debt counted, and you're adding about ${XK('savenow',`<em class="hl-rent">${F$(saveMo)}/mo</em>`)}.`;
+  document.getElementById('n-eb').textContent = `Today · ${fmtDay(new Date())}${solo?' · '+whoName(W):''}`;
+  document.getElementById('n-thesis').innerHTML = solo
+    ? `${whoName(W)} is worth ${XK(kx('nwnow'),`<em class="hl-rent">${M$(nw)}</em>`)} today and adding about ${XK(kx('savenow'),`<em class="hl-rent">${F$(saveMo)}/mo</em>`)}.`
+    : `You're worth ${XK(kx('nwnow'),`<em class="hl-rent">${M$(nw)}</em>`)} today, with no debt counted, and you're adding about ${XK(kx('savenow'),`<em class="hl-rent">${F$(saveMo)}/mo</em>`)}.`;
   document.getElementById('n-lede').textContent = `Balances as of ${fmtDay(d)}${age>0?` (${age} day${age===1?'':'s'} ago)`:''}. ${F$(liq)} is liquid (cash + brokerage) and ${F$(p.retire)} is in retirement accounts.${age>31?' Update Savings on Assumptions to refresh.':''}`;
-  document.getElementById('nv-now').textContent = M$(nw);
   kpis(document.getElementById('n-kpis'),[
-    ['Net worth',M$(nw),chip('As of '+d.toLocaleString('en-US',{month:'short',day:'numeric'}),'nt'),'','nwnow'],
+    ['Net worth',M$(nw),chip('As of '+d.toLocaleString('en-US',{month:'short',day:'numeric'}),'nt'),'',kx('nwnow')],
     ['Liquid',M$(liq),chip(`${Math.round(liq/nw*100)}% of net worth`,'nt'),'','in:cash'],
-    ['Runway with no income',`${(liq/spend).toFixed(1)} mo`,chip(`${F$(spend)}/mo of spending`,'nt'),'','rwnow'],
-    ['Saving rate',pct(rate),chip(`${F$(saveMo)}/mo`,'up'),'','savenow'],
+    ['Runway with no income',`${(liq/spend).toFixed(1)} mo`,chip(`${F$(spend)}/mo of spending${solo?', half the rent':''}`,'nt'),'',kx('rwnow')],
+    ['Saving rate',pct(rate),chip(`${F$(saveMo)}/mo`,'up'),'',kx('savenow')],
   ]);
   // where it sits
   const rows=[['Cash','cash','--c-cash'],['Brokerage','brok','--c-brok'],['Retirement','retire','--c-ret']];
-  document.getElementById('n-where-sub').textContent = `${PEOPLE[0]} and ${PEOPLE[1]}`;
+  document.getElementById('n-where-sub').textContent = solo ? `${whoName(W)} · both of you in the table` : `${PEOPLE[0]} and ${PEOPLE[1]}`;
   document.getElementById('n-bar').innerHTML = rows.map(([l,k,c])=>p[k]>0?`<div style="flex:${p[k]/nw} 1 0;background:var(${c});${c==='--c-cash'?'color:#1b2440':''}" title="${l}: ${F$(p[k])}">${p[k]/nw>0.12?l+' '+M$(p[k]):''}</div>`:'').join('');
-  const pp=k=>P.pp[k]||[p[k],0], tot=[0,1].map(w=>rows.reduce((a,[l,k])=>a+pp(k)[w],0));
-  document.getElementById('n-table').innerHTML = `<thead><tr><th></th><th>${PEOPLE[0]}</th><th>${PEOPLE[1]}</th><th>Total</th><th>Share</th></tr></thead><tbody>`+
-    rows.map(([l,k,c])=>`<tr><td><i class="sq" style="background:var(${c});margin-right:7px;vertical-align:-1px"></i>${l}</td><td>${F$(pp(k)[0])}</td><td>${F$(pp(k)[1])}</td><td>${XK('in:'+k,F$(p[k]))}</td><td>${pct(p[k]/nw*100)}</td></tr>`).join('')+
-    `<tr class="tot"><td>Net worth</td><td>${F$(tot[0])}</td><td>${F$(tot[1])}</td><td>${XK('nwnow',F$(nw))}</td><td>100%</td></tr></tbody>`;
+  const pp=k=>P.pp[k]||[P[k],0], tot=[0,1].map(w=>rows.reduce((a,[l,k])=>a+pp(k)[w],0)), hc=i=>solo&&+W===i?' style="color:var(--ink);font-weight:700"':(solo?' style="color:var(--muted)"':'');
+  document.getElementById('n-table').innerHTML = `<thead><tr><th></th><th${hc(0)}>${PEOPLE[0]}</th><th${hc(1)}>${PEOPLE[1]}</th><th>Total</th><th>${solo?whoName(W)+' share':'Share'}</th></tr></thead><tbody>`+
+    rows.map(([l,k,c])=>`<tr><td><i class="sq" style="background:var(${c});margin-right:7px;vertical-align:-1px"></i>${l}</td><td${hc(0)}>${F$(pp(k)[0])}</td><td${hc(1)}>${F$(pp(k)[1])}</td><td>${XK('in:'+k,F$(P[k]))}</td><td>${pct(p[k]/nw*100)}</td></tr>`).join('')+
+    `<tr class="tot"><td>Net worth</td><td${hc(0)}>${F$(tot[0])}</td><td${hc(1)}>${F$(tot[1])}</td><td>${XK('nwnow:b',F$(P.cash+P.brok+P.retire))}</td><td>100%</td></tr></tbody>`;
   // engine
   hbars(document.getElementById('n-engine'),[
     ['Income to checking',p.bank,'var(--pos)','','in:bank'],
-    ['Rent, current lease',-rentNow,'var(--neg)','','in:rentNow'],
+    [solo?'Half the rent, current lease':'Rent, current lease',-rentNow,'var(--neg)','','in:rentNow'],
     ['Cars, insurance, other',-livingOf(p),'var(--neg)','','exp:rent'],
-    ['Net income',net,net>=0?'var(--pos)':'var(--neg)','total','savenow'],
+    ['Net income',net,net>=0?'var(--pos)':'var(--neg)','total',kx('savenow')],
     ['Brokerage deposit',p.bdd,'var(--c-brok)','','in:bdd'],
     ['Retirement contributions',p.contrib/12,'var(--c-ret)','','in:contrib'],
   ],{fmt:v=>(v<0?'−':'')+F$(Math.abs(v))});
-  document.getElementById('n-engine-note').innerHTML = `Brokerage deposits and retirement contributions come out of pay before income hits checking. ${p.rentNow>0?'':'<b>Current rent isn’t entered</b>, so this uses your yard-house rent. '}Saving rate = what you invest + positive net income, as a share of everything you earn after tax.`;
+  document.getElementById('n-engine-note').innerHTML = `Brokerage deposits and retirement contributions come out of pay before income hits checking. ${solo?`Showing ${whoName(W)}’s pay, deposits and share of bills as entered; rent is split 50/50. `:''}${P.rentNow>0?'':'<b>Current rent isn’t entered</b>, so this uses your yard-house rent. '}Saving rate = what you invest + positive net income, as a share of everything you earn after tax.`;
   // between now and the decision
   const LE=r.LE, T=r.T, at=m=>{ const x=r.all[Math.min(m,r.M)]; return {nw:B(A0,x.nw,x.m), liq:B(A0,x.liq,x.m)}; };
-  document.getElementById('n-path-sub').textContent = `The three paths are identical until ${mon(T)}`;
+  document.getElementById('n-path-sub').textContent = `${solo?'Household · ':''}The three paths are identical until ${mon(T)}`;
+  const hnw=P.cash+P.brok+P.retire, hliq=P.cash+P.brok;
   const step=(k,dt,v,sub,x)=>`<div class="n-step"><div class="k">${k}</div><div class="d">${dt}</div><div class="v">${XK(x,M$(v))}</div><div class="s">${sub}</div></div>`;
   const nwT=at(T).nw, liqT=at(T).liq;
   document.getElementById('n-steps').innerHTML =
-    step('Today',fmtDay(d),nw,`${M$(liq)} liquid`,'nwnow')+
-    step('Lease ends',monEnd(LE),at(LE).nw,`${M$(at(LE).liq)} liquid · +${M$(at(LE).nw-nw)} from today`,`nw:rent:${LE}`)+
-    step('Paths split',`${mon(T)}: rent moves, buy closes, van leaves`,nwT,`${M$(liqT)} liquid · +${M$(nwT-nw)} from today`,`nw:rent:${T}`);
+    step('Today',fmtDay(d),hnw,`${M$(hliq)} liquid`,'nwnow:b')+
+    step('Lease ends',monEnd(LE),at(LE).nw,`${M$(at(LE).liq)} liquid · +${M$(at(LE).nw-hnw)} from today`,`nw:rent:${LE}`)+
+    step('Paths split',`${mon(T)}: rent moves, buy closes, van leaves`,nwT,`${M$(liqT)} liquid · +${M$(nwT-hnw)} from today`,`nw:rent:${T}`);
 }
 /* =================== cash flow statement =================== */
 let CF = (()=>{ try{ return Object.assign({k:'rent',per:'y',yr:0}, JSON.parse(store.get('homeOrRoad.cf')||'{}')); }catch(e){ return {k:'rent',per:'y',yr:0}; } })();
@@ -2796,15 +2810,15 @@ XP.up = k => {
     steps:[{l:'Cash + brokerage today',v:liq,x:'in:cash'},{op:'−',l:'Cash needed',v:0},{op:'=',l:'Stays invested',v:liq,cls:'total'}]};
 };
 
-XP.nwnow = () => { const p=P;
-  return {eb:'Today', t:'Net worth today', v:M$(p.cash+p.brok+p.retire), sub:'as of '+fmtDay(asOfDate()), what:'Your balances as entered on Assumptions → Savings. Cars and other personal property aren’t counted, and there’s no debt entered.',
+XP.nwnow = w => { const p=pv(w);
+  return {eb:'Today · '+whoName(w||'b'), t:'Net worth today', v:M$(p.cash+p.brok+p.retire), sub:'as of '+fmtDay(asOfDate()), what:'Your balances as entered on Assumptions → Savings. Cars and other personal property aren’t counted, and there’s no debt entered.',
     steps:[{l:'Cash',v:p.cash,x:'in:cash'},{op:'+',l:'Brokerage',v:p.brok,x:'in:brok'},{op:'+',l:'Retirement',v:p.retire,x:'in:retire'},{op:'=',l:'Net worth',v:p.cash+p.brok+p.retire,cls:'total'}]}; };
-XP.savenow = () => { const p=P, rentNow=p.rentNow>0?p.rentNow:p.rent, net=p.bank-rentNow-livingOf(p), save=p.bdd+p.contrib/12+Math.max(0,net);
-  return {eb:'Today', t:'Saving per month', v:F$(save)+'/mo', sub:'current lease', what:'What you invest automatically plus what’s left in checking after bills, at today’s pay and your current rent.',
+XP.savenow = w => { const p=pv(w), rentNow=p.rentNow>0?p.rentNow:p.rent, net=p.bank-rentNow-livingOf(p), save=p.bdd+p.contrib/12+Math.max(0,net);
+  return {eb:'Today · '+whoName(w||'b'), t:'Saving per month', v:F$(save)+'/mo', sub:'current lease', what:'What you invest automatically plus what’s left in checking after bills, at today’s pay and your current rent.',
     steps:[{l:'Income to checking',v:p.bank,x:'in:bank'},{op:'−',l:'Rent, current lease',v:rentNow,x:'in:rentNow'},{op:'−',l:'Cars, insurance, other',v:livingOf(p),x:'in:other'},{op:'=',l:'Net income',v:net,cls:'sub'},
       {sep:'Saved'},{l:'Brokerage deposit',v:p.bdd,x:'in:bdd'},{op:'+',l:'Retirement contributions',f:`${F$(p.contrib)}/yr ÷ 12`,v:p.contrib/12,x:'in:contrib'},{op:'+',l:'Net income (if positive)',v:Math.max(0,net)},{op:'=',l:'Saving per month',v:save,cls:'total'}]}; };
-XP.rwnow = () => { const p=P, rentNow=p.rentNow>0?p.rentNow:p.rent, sp=rentNow+livingOf(p), liq=p.cash+p.brok;
-  return {eb:'Today', t:'Runway with no income', v:(liq/sp).toFixed(1)+' months', what:'How long cash + brokerage would cover your current spending if both paychecks stopped. Ignores investment swings and taxes on selling.',
+XP.rwnow = w => { const p=pv(w), rentNow=p.rentNow>0?p.rentNow:p.rent, sp=rentNow+livingOf(p), liq=p.cash+p.brok;
+  return {eb:'Today · '+whoName(w||'b'), t:'Runway with no income', v:(liq/sp).toFixed(1)+' months', what:'How long cash + brokerage would cover your current spending if both paychecks stopped. Ignores investment swings and taxes on selling.',
     steps:[{l:'Cash + brokerage',v:liq,x:'in:cash'},{op:'÷',l:'Monthly spending',f:'Current rent + cars, insurance, other',v:sp,fmt:'$'},{op:'=',l:'Months covered',v:(liq/sp).toFixed(1)+' mo',cls:'total'}]}; };
 
 XP.bx = () => { const p=A.p, f=A.R.buy.first, v=f.housing-f.taxBen-p.rent;
