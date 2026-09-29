@@ -1184,7 +1184,7 @@ function computeAll(p){
 function vanCost(A){
   const p=A.p, r=A.R.rent, v=A.R.van, M=r.M, gM=Math.pow(1+p.ret/100,1/12);
   const det={saved:[],road:[],van:[],gap:[],pay:[],contrib:[],pre:[]};
-  const add=(k,m,amt,lab)=>{ const g=Math.pow(gM,M-m-1); det[k].push({m,amt,g,fv:amt*g,lab}); return amt*g; };
+  const add=(k,m,amt,lab)=>{ const g=Math.pow(gM,M-m-1); det[k].push({m,amt,g,fv:amt*g,tod:TODAY(p,amt,m),lab}); return amt*g; };
   let saved=0, road=0, loan=0, gapM=0, pay=0, contrib=0, preM=0;
   for(let m=0;m<M;m++){
     const a=r.months[m], b=v.months[m];
@@ -1196,15 +1196,20 @@ function vanCost(A){
   }
   const vanNet = add('van',v.vS,v.vanCashIn,'Van + setup') + loan + add('van',v.vS+v.roadM-1,-v.vanSaleNet,'Van sold');
   const total = r.end.nw - v.end.nw, T = x => TODAY(p,x,M);
+  // each part = its cash, in today's dollars as of when it happens; the growth that cash would have earned is one separate line
+  const cashOf = k => det[k].reduce((a,x)=>a+x.tod,0), fvOf = k => T(det[k].reduce((a,x)=>a+x.fv,0));
+  const keys=['saved','road','van','gap','pay','contrib','pre'];
   const parts = [
-    ['Savings you stop making', T(saved), 'saved'],
-    ['Road spending', T(road), 'road'],
-    ['Van, net of resale', T(vanNet), 'van'],
-    ['Months job hunting', T(gapM), 'gap'],
-    ['Lower pay after you return', T(pay), 'pay'],
-    ['Skipped retirement contributions', T(contrib), 'contrib'],
+    ['Savings you stop making', cashOf('saved'), 'saved'],
+    ['Road spending', cashOf('road'), 'road'],
+    ['Van, net of resale', cashOf('van'), 'van'],
+    ['Months job hunting', cashOf('gap'), 'gap'],
+    ['Lower pay after you return', cashOf('pay'), 'pay'],
+    ['Skipped retirement contributions', cashOf('contrib'), 'contrib'],
   ];
-  if(Math.abs(T(preM))>=500) parts.push(['Months before you leave', T(preM), 'pre']);
+  if(Math.abs(cashOf('pre'))>=500) parts.push(['Months before you leave', cashOf('pre'), 'pre']);
+  const growth = keys.reduce((a,k)=>a+fvOf(k)-cashOf(k),0) + (Math.abs(cashOf('pre'))>=500?0:cashOf('pre'));
+  parts.push(['Lost investment growth', growth, 'growth']);
   const other = T(total)-parts.reduce((a,x)=>a+x[1],0);
   if(Math.abs(other)>=1) parts.push([p.after==='buy'||p.rentBuyYears>0?'Timing of the house purchase + other':'Other (cash yield, timing)', other, 'other']);
   return {parts, total:T(total), det};
@@ -1625,7 +1630,7 @@ function renderBuy(){
 function renderVan(){
   const p=A.p, v=A.R.van, r=A.R.rent, H=v.H, E=START_YEAR+H-1, N=NAME(p), vc=vanCost(A);
   const d=B(p,v.end.nw-r.end.nw,v.end.m), perMo=vc.total/v.roadM;
-  const saving=vc.parts.filter(x=>/Savings|retirement|pay|hunting/i.test(x[0])).reduce((a,x)=>a+x[1],0);
+  const saving=vc.parts.filter(x=>['saved','gap','pay','contrib','growth'].includes(x[2])).reduce((a,x)=>a+x[1],0);
   document.getElementById('v-eyebrow').textContent = `${N.van} · ${v.roadM} months on the road from ${mon(v.vS)}`;
   document.getElementById('v-thesis').innerHTML = `${yrs(p.roadYears).replace(/^./,c=>c.toUpperCase())} on the road costs ${hl('van',M$(Math.abs(vc.total)),'vgap')} of ${E} net worth, about ${hl('van',M$(perMo)+' for every month away','pm')}. ${saving>vc.total*0.5?'Most of it is savings you stop making, not money you spend.':'Most of it is what you spend on the road and the van.'}`;
   document.getElementById('v-lede').textContent = `Then ${p.gap} months job hunting and back to work at ${p.returnPct}% of the pay you'd have had${p.catchUp>0?`, climbing to full pay over ${yrs(p.catchUp)}`:''}, with brokerage deposits at ${p.bddVan}% of before, then ${p.after==='buy'?'buy the house':'rent again'}. Road costs ${F$(roadBurn(p))}/mo against ${F$(p.rent+livingOf(p))}/mo of rent and expenses in Denver now.`;
@@ -2590,13 +2595,13 @@ XP.vgap = () => {
 };
 
 const VG_TXT = {
-  saved: p=>`Every month on the road, the rent path saves money (brokerage deposit + net income). The van path saves none of it. Each missed month is grown at ${pctS(p.ret)}/yr to the end, since it would have been invested.`,
-  road: p=>`What you spend on the road (fuel, food, campsites, health insurance, van upkeep, storage), less any side income. Each month is grown at ${pctS(p.ret)}/yr, the return that money would have earned.`,
-  van: p=>`Cash paid for the van and setup, plus loan payments, minus what you get back when you sell it (${pctS(p.vanResale)} of the price, less any loan left). Each amount is grown at ${pctS(p.ret)}/yr from when it happens.`,
-  gap: p=>`While you look for work (${p.gap} months), you pay Denver rent and expenses with no paycheck, and the rent path keeps saving. The difference each month is grown at ${pctS(p.ret)}/yr.`,
-  pre: p=>`Before you leave, both paths are identical (same job, same rent), so this is normally zero. Any amount here comes from cash-sweep timing, grown at ${pctS(p.ret)}/yr.`,
-  pay: p=>`After you're back, you start at ${pctS(p.returnPct)} of the pay you'd have had${p.catchUp>0?` and climb back to 100% over ${yrs(p.catchUp)}`:' and stay there for the rest of the projection'}. Each month you save less than the rent path; each month's difference is grown at ${pctS(p.ret)}/yr to the end.`,
-  contrib: p=>`401(k)/IRA contributions and the match you skip on the road, plus smaller ones after you're back at ${pctS(p.returnPct)} pay. Each month's difference is grown at ${pctS(p.ret)}/yr.`,
+  saved: p=>`Every month on the road, the rent path saves money (brokerage deposit + net income). The van path saves none of it. This is the plain total of those missed months, each in today's dollars. The growth it would have earned is its own line.`,
+  road: p=>`What you spend on the road (fuel, food, campsites, health insurance, van upkeep, storage), less any side income. Plain total, each month in today's dollars.`,
+  van: p=>`Cash paid for the van and setup, plus any loan payments, minus what you get back when you sell it (${pctS(p.vanResale)} of the price, less any loan left). Plain cash, in today's dollars.`,
+  gap: p=>`While you look for work (${p.gap} months), you pay Denver rent and expenses with no paycheck, and the rent path keeps saving. Plain total of the difference, in today's dollars.`,
+  pre: p=>`Before you leave, both paths are identical (same job, same rent), so this is normally zero.`,
+  pay: p=>`After you're back, you start at ${pctS(p.returnPct)} of the pay you'd have had${p.catchUp>0?` and climb back to 100% over ${yrs(p.catchUp)}`:' and stay there for the rest of the projection'}. Plain total of how much less you save each month than the rent path, in today's dollars.`,
+  contrib: p=>`401(k)/IRA contributions and the match you skip on the road, plus smaller ones after you're back. Plain total, in today's dollars.`,
 };
 XP.vg = kk => {
   const p=A.p, vc=vanCost(A), part=vc.parts.find(x=>x[2]===kk); if(!part) return null;
@@ -2604,20 +2609,34 @@ XP.vg = kk => {
   if(kk==='other'){
     const steps=[{l:'Total gap',v:vc.total,x:'vgap'},...vc.parts.filter(x=>x[2]!=='other').map(([l,x,k2])=>({op:x<0?'+':'−',l,v:Math.abs(x),x:'vg:'+k2})),{op:'=',l:part[0],v:part[1],cls:'total'}];
     return {eb:nm('van')+' · Where the gap comes from', t:part[0], v:M$(part[1]), sub:"today's dollars",
-      what:'What the six parts don’t capture: cash earns the cash rate instead of the investment return when balances differ, timing of moves between checking and brokerage, borrowing costs if brokerage goes negative, and (if you buy after) a different purchase date and price. It is the total minus the parts.', steps};
+      what:'What the lines above don’t capture: cash earns the cash rate instead of the investment return when balances differ, timing of moves between checking and brokerage, borrowing costs if brokerage goes negative, and (if you buy after) a different purchase date and price. It is the total minus the parts.', steps};
   }
-  const d=vc.det[kk].slice().sort((a,b)=>a.m-b.m), amt=d.reduce((a,x)=>a+x.amt,0), fv=d.reduce((a,x)=>a+x.fv,0);
+  if(kk==='growth'){
+    const K=[['saved','Savings you stop making'],['road','Road spending'],['van','Van, net of resale'],['gap','Months job hunting'],['pay','Lower pay after you return'],['contrib','Skipped retirement contributions'],['pre','Months before you leave']];
+    const rows=K.map(([k,l])=>{ const c=vc.det[k].reduce((a,x)=>a+x.tod,0), g=TODAY(p,vc.det[k].reduce((a,x)=>a+x.fv,0),A.R.rent.M)-c; return [l,c,g]; }).filter(r=>Math.abs(r[1])+Math.abs(r[2])>=1);
+    return {eb:nm('van')+' · Where the gap comes from', t:part[0], v:M$(part[1]), sub:"today's dollars",
+      what:`Every dollar in the lines above would otherwise have been invested at ${pctS(p.ret)}/yr until the end of ${E}. This is what it would have grown into, over and above inflation. Money that leaves early (the van, the road) loses the most; later pay differences lose less.`,
+      steps:[...rows.map(([l,c,g],i)=>({op:i?(g<0?'−':'+'):'',l:`Growth on: ${l}`,v:i?Math.abs(g):g})),{op:'=',l:'Lost investment growth',v:part[1],cls:'total'}],
+      table:{cols:['Line','Cash (today’s $)','Lost growth (today’s $)'],rows,foot:['Total',rows.reduce((a,r)=>a+r[1],0),rows.reduce((a,r)=>a+r[2],0)],note:`Growth = each month's amount compounded at ${pctS(p.ret)}/yr to Dec ${E}, converted to today's dollars, minus the cash itself.`}};
+  }
+  const d=vc.det[kk].slice().sort((a,b)=>a.m-b.m), amt=d.reduce((a,x)=>a+x.amt,0), tod=d.reduce((a,x)=>a+x.tod,0);
   let table;
-  if(d.length<=36) table={cols:['Month','Amount','Growth factor',`Worth at end of ${E}`],rows:d.map(x=>[mon(x.m)+(x.lab?' · '+x.lab:''),x.amt,x.g.toFixed(4),x.fv]),foot:['Total',amt,'',fv],note:`Future dollars. Growth factor = (1 + ${pctS(p.ret)}) ^ (months until Dec ${E} ÷ 12).`};
-  else { const by={}; d.forEach(x=>{ const y=yrOfM(x.m); by[y]=by[y]||[0,0]; by[y][0]+=x.amt; by[y][1]+=x.fv; });
-    table={cols:['Year','Amount',`Worth at end of ${E}`],rows:Object.entries(by).map(([y,[a,f]])=>[y,a,f]),foot:['Total',amt,fv],note:'Future dollars. Each month is grown separately; rows are yearly totals.'}; }
-  const ex = {saved:[`e.g. ${mon(A.R.rent.firstM)}: the rent path saves`,A.R.rent.first.saved,'sv:rent'], road:['e.g. first month on the road',A.R.van.first.road-A.R.van.first.side,'vb'], gap:null, pay:null, contrib:['e.g. retirement contributions, Jan 2027 (rent path)',A.R.rent.first.contrib,'con:rent'], van:['Van + setup, paid up front',A.R.van.vanCashIn,'run']}[kk];
+  if(d.length<=36) table={cols:['Month','Amount','In today’s $'],rows:d.map(x=>[mon(x.m)+(x.lab?' · '+x.lab:''),x.amt,x.tod]),foot:['Total',amt,tod],note:`Amount = future dollars as it happens. In today's $ = amount ÷ (1 + ${pctS(p.infl)}) ^ (years from now).`};
+  else { const by={}; d.forEach(x=>{ const y=yrOfM(x.m); by[y]=by[y]||[0,0]; by[y][0]+=x.amt; by[y][1]+=x.tod; });
+    table={cols:['Year','Amount','In today’s $'],rows:Object.entries(by).map(([y,[a,t]])=>[y,a,t]),foot:['Total',amt,tod],note:'Each month converted separately; rows are yearly totals.'}; }
+  const ex = {saved:[`e.g. ${mon(A.R.rent.firstM)}: the rent path saves`,A.R.rent.first.saved,'sv:rent'], road:['e.g. first month on the road',A.R.van.first.road-A.R.van.first.side,'vb'], gap:null, pay:null, contrib:[`e.g. retirement contributions, ${mon(A.R.rent.firstM)} (rent path)`,A.R.rent.first.contrib,'con:rent'], van:null}[kk];
   const steps=[];
-  if(ex) steps.push({l:ex[0],f:'Where the monthly amount comes from',v:ex[1],x:ex[2]},{sep:'Adding it up'});
-  steps.push({l:'Total of the monthly amounts',f:'As they happen, future dollars (table below)',v:amt},
-    {op:'+',l:`Growth at ${pctS(p.ret)}/yr until Dec ${E}`,f:'What that money would have earned invested',v:fv-amt,x:'in:ret'},
-    {op:'=',l:`Worth at end of ${E}`,v:fv,cls:'sub'},...toToday(p,fv,A.R.rent.M,true));
-  return {eb:nm('van')+' · Where the gap comes from', t:part[0], v:M$(part[1]), sub:"today's dollars", what:VG_TXT[kk](p), steps, table};
+  if(kk==='van'){ const v=A.R.van, lo=d.filter(x=>x.lab==='Van loan'), loT=lo.reduce((a,x)=>a+x.amt,0), sale=d.find(x=>x.lab==='Van sold');
+    steps.push({l:`Van + setup, paid ${mon(v.vS)}`,f:'Cash portion, after any financing',v:v.vanCashIn,x:'up:van'});
+    if(loT>0) steps.push({op:'+',l:'Van loan payments',v:loT,x:'vl'});
+    if(sale) steps.push({op:'−',l:`Van sold, ${mon(sale.m)}`,f:`${pctS(p.vanResale)} of the price, less any loan left`,v:-sale.amt,x:'in:vanResale'});
+    steps.push({op:'=',l:'Net cash cost of the van',f:'Future dollars',v:amt,cls:'sub'},{l:"In today's dollars",f:'Each amount converted from when it happens (table below)',v:tod,cls:'total',x:'in:infl'});
+  } else {
+    if(ex) steps.push({l:ex[0],f:'Where the monthly amount comes from',v:ex[1],x:ex[2]},{sep:'Adding it up'});
+    steps.push({l:'Total of the monthly amounts',f:'Future dollars, as they happen',v:amt,cls:'sub'},{l:"In today's dollars",f:'Each month converted from when it happens (table below)',v:tod,cls:'total',x:'in:infl'});
+  }
+  return {eb:nm('van')+' · Where the gap comes from', t:part[0], v:M$(part[1]), sub:"today's dollars", what:VG_TXT[kk](p), steps, table,
+    notes:[`The growth this money would have earned invested is counted separately, in "Lost investment growth".`]};
 };
 
 XP.sv = (k, m) => { const r=RUN(k); m = m===undefined ? r.firstM : +m; const x=r.months[m];
