@@ -988,6 +988,7 @@ function run(kind, p){
   const equity = ()=> bought ? home*(1-p.sell/100)-mort : 0;
   const snap = m => ({m, cash, brok, retire, equity:equity(), home, mort, van, vanBal, liq:cash+brok, nw:cash+brok+retire+equity()+van-vanBal});
   const months=[]; const start=snap(0); const draw0=draw;
+  let taxCur=0, taxPend=0;   // mortgage tax savings accrue monthly, arrive as a refund each April
 
   for(let m=0;m<M;m++){
     draw=0;
@@ -996,7 +997,7 @@ function run(kind, p){
     if(kind==='van' && m===roadM){ vanSaleNet=van-vanBal; cash+=vanSaleNet; van=0; vanBal=0; }
     if(laterBuyM!==null && m===laterBuyM && !bought) buyHome(m);
     const fac = kind==='van' ? p.returnPct/100 : 1;
-    const r = {bank:0,bdd:0,contrib:0,rent:0,pi:0,interest:0,pt:0,hins:0,maint:0,hoa:0,util:0,pmi:0,car:0,ins:0,other:0,road:0,vanLoan:0,side:0,taxBen:0};
+    const r = {bank:0,bdd:0,contrib:0,rent:0,pi:0,interest:0,pt:0,hins:0,maint:0,hoa:0,util:0,pmi:0,car:0,ins:0,other:0,road:0,vanLoan:0,side:0,taxBen:0,taxRef:0};
     if(onRoad){
       r.side=p.side*f; r.road=roadBurn(p)*roadMul*f; van-=vanDep;
       if(vanBal>0){ const it=vanBal*vr, pr=Math.min(vanPmt-it,vanBal); vanBal-=pr; r.vanLoan=it+pr; }
@@ -1025,7 +1026,11 @@ function run(kind, p){
     }
     r.housing = r.rent+r.pi+r.pt+r.hins+r.maint+r.hoa+r.util+r.pmi;
     r.living = r.car+r.ins+r.other;
-    r.bankNet = r.bank+r.taxBen+r.side-r.housing-r.living-r.road-r.vanLoan;
+    if(m%12===0 && m>0){ taxPend+=taxCur; taxCur=0; }
+    taxCur+=r.taxBen;
+    if(m%12===3){ r.taxRef=taxPend; taxPend=0; }
+    if(m===M-1){ r.taxRef+=taxPend+taxCur; taxPend=0; taxCur=0; }
+    r.bankNet = r.bank+r.taxRef+r.side-r.housing-r.living-r.road-r.vanLoan;
     r.saved = r.bdd + r.bankNet;
     brok += r.bdd;
     if(r.bankNet>=0) cash+=r.bankNet; else spend(-r.bankNet);
@@ -1040,7 +1045,7 @@ function run(kind, p){
   const years=[];
   for(let y=0;y<H;y++){
     const sl=months.slice(y*12,y*12+12), sum=k=>sl.reduce((a,x)=>a+x[k],0), e=sl[sl.length-1];
-    years.push({y, year:START_YEAR+y, m:e.m, income:sum('bank')+sum('taxBen')+sum('side'), bank:sum('bank'), bdd:sum('bdd'), bankNet:sum('bankNet'), invested:sum('invested'), brokDraw:sum('brokDraw'), sweep:sum('sweep'), toBrok:sum('bdd')+sum('sweep'), taxBen:sum('taxBen'),
+    years.push({y, year:START_YEAR+y, m:e.m, income:sum('bank')+sum('taxRef')+sum('side'), taxRef:sum('taxRef'), bank:sum('bank'), bdd:sum('bdd'), bankNet:sum('bankNet'), invested:sum('invested'), brokDraw:sum('brokDraw'), sweep:sum('sweep'), toBrok:sum('bdd')+sum('sweep'), taxBen:sum('taxBen'),
       housing:sum('housing'), rent:sum('rent'), pi:sum('pi'), living:sum('living'), road:sum('road')+sum('vanLoan'), saved:sum('saved'), contrib:sum('contrib'),
       cash:e.cash, brok:e.brok, liq:e.liq, retire:e.retire, equity:e.equity, home:e.home, mort:e.mort, van:e.van-e.vanBal, nw:e.nw, onRoad:sl[0].onRoad});
   }
@@ -1239,7 +1244,7 @@ function renderSummary(){
   const rf=R.rent.first, bf=R.buy.first;
   const mo = x => F$(x)+'/mo', vf=R.van.first;
   const endB = k => M$(B(p,R[k].end.brok,R[k].end.m)), endR = k => M$(B(p,R[k].end.retire,R[k].end.m));
-  const inc = (k,f) => ['Income',mo(f.bank+f.taxBen+f.side),'th:'+k], net = (k,f) => ['Net income',f.bankNet<0?'<span style="color:var(--neg)">−'+F$(-f.bankNet)+'/mo</span>':mo(f.bankNet),'ab:'+k];
+  const inc = (k,f) => ['Income',mo(f.bank+f.taxRef+f.side),'th:'+k], net = (k,f) => ['Net income',f.bankNet<0?'<span style="color:var(--neg)">−'+F$(-f.bankNet)+'/mo</span>':mo(f.bankNet),'ab:'+k];
   const cRows = (k,f,first) => [inc(k,f),first,net(k,f),['Invested (brokerage)',mo(f.bdd),'bdd:'+k],['Invested (retirement)',mo(f.contrib),'con:'+k],[`Brokerage, end of ${E}`,endB(k),'endB:'+k],[`Retirement, end of ${E}`,endR(k),'endR:'+k]];
   document.getElementById('s-cards').innerHTML =
     card('rent',cRows('rent',rf,['Expenses',mo(rf.housing+rf.living),'exp:rent'])) +
@@ -1280,7 +1285,7 @@ function renderSummary(){
     ['Cash + brokerage at the end', k=>M$(B(p,R[k].end.liq,R[k].end.m)), null, k=>'liq:'+k],
     ['Lowest point', k=>{const ml=R[k].minLiq, fn=R[k].firstNeg; return fn ? liqStatus(R[k]).txt : `${M$(B(p,ml.liq,ml.m))} · ${monEnd(ml.m)}`;}, k=>R[k].firstNeg?'neg':'', k=>'low:'+k],
     ['sec','Monthly cash flow, 2027'],
-    ['Income (hits bank)', k=>F$(R[k].first.bank+R[k].first.taxBen+R[k].first.side), null, k=>'th:'+k],
+    ['Income (hits bank)', k=>F$(R[k].first.bank+R[k].first.taxRef+R[k].first.side), null, k=>'th:'+k],
     ['Housing', k=>R[k].first.onRoad?'–':F$(R[k].first.housing), null, k=>R[k].first.onRoad?null:'hs:'+k],
     ['Net income', k=>F$(R[k].first.bankNet), k=>R[k].first.bankNet<0?'neg':'', k=>'ab:'+k],
     ['Brokerage deposits', k=>F$(R[k].first.bdd), null, k=>'bdd:'+k],
@@ -1491,7 +1496,7 @@ function renderBuy(){
   const rows=[['Principal + interest',f.pi,'pi:buy'],['Property tax',f.pt,'hs:buy'],['Homeowners insurance',f.hins,'hs:buy'],['Maintenance reserve',f.maint,'hs:buy']];
   if(f.hoa>0) rows.push(['HOA',f.hoa,'in:hoa']); if(f.util>0) rows.push(['Extra utilities',f.util,'in:util']); if(f.pmi>0) rows.push(['PMI',f.pmi,'hs:buy']);
   const cr=rows.map(([l,v,x])=>[l,v,'var(--buy)','',x]);
-  if(f.taxBen>0) cr.push(['Mortgage tax savings',-f.taxBen,'var(--pos)','','tax:buy']);
+  if(f.taxBen>0) cr.push(['Tax savings (April refund)',-f.taxBen,'var(--pos)','','tax:buy']);
   cr.push(['Net cost of owning',f.housing-f.taxBen,'var(--buy)','total','bx'],['Rent today',p.rent,'var(--rent)','total','in:rent']);
   hbars(document.getElementById('b-month'),cr,{fmt:v=>(v<0?'−':'')+F$(Math.abs(v))});
   document.getElementById('b-lg1').innerHTML = `<span><i class="sq" style="background:var(--buy)"></i>Home value</span><span><i class="sq" style="background:var(--muted)"></i>Loan balance</span>`;
@@ -2108,7 +2113,7 @@ function toToday(p, v, m, always){
           {op:'=', l:"In today's dollars", v:v/f, cls:'total'}];
 }
 const DOL = always => (REAL||always) ? "today's dollars" : 'future dollars';
-const mY = x => Object.assign({}, x, {income:x.bank+x.taxBen+x.side, toBrok:x.bdd+x.sweep, road:x.road+x.vanLoan, van:x.van-x.vanBal});
+const mY = x => Object.assign({}, x, {income:x.bank+x.taxRef+x.side, toBrok:x.bdd+x.sweep, road:x.road+x.vanLoan, van:x.van-x.vanBal});
 function yearRows(r, cols){
   return r.years.map((yr,i)=>{ const sl=r.months.slice(i*12,i*12+12);
     return [String(yr.year), ...cols.map(([l,fn,mode])=> mode==='end' ? fn(sl[sl.length-1]) : mode==='min' ? Math.min(...sl.map(fn)) : sl.reduce((a,x)=>a+fn(x),0))]; });
@@ -2124,7 +2129,7 @@ const nm = k => NAME(A.p)[k];
 const ENDY = () => START_YEAR+A.R.rent.H-1;
 const TBL = {};
 const COLDEF = {
-  'Income':'Paychecks that hit checking (including any brokerage deposit redirected there), plus mortgage tax savings and side income.',
+  'Income':'Paychecks that hit checking (including any brokerage deposit redirected there), plus side income, plus the mortgage tax refund in April if you own.',
   'Housing':'Rent, or everything it costs to own: mortgage, property tax, insurance, maintenance, HOA, PMI.',
   'Cars, ins., other':'Cars, insurance and other recurring spending. Grows with inflation.',
   'Net income':'Income minus housing and spending. A positive amount stays in checking, and anything above your cash cushion is moved to brokerage. A negative amount comes out of cash first, then brokerage.',
@@ -2157,7 +2162,7 @@ XP.exp = k => {
   else steps.push({l:'Housing, all-in',f:'Mortgage, property tax, insurance, maintenance'+(f.hoa?', HOA':'')+(f.pmi?', PMI':''),v:f.housing,x:'hs:'+k});
   steps.push({op:'+',l:'Cars',v:f.car,x:'in:car'},{op:'+',l:'Insurance',v:f.ins,x:'in:ins'},{op:'+',l:'Other recurring',v:f.other,x:'in:other'},{op:'=',l:'Expenses, Jan 2027',v:f.housing+f.living,cls:'total'});
   return {eb:nm(k), t:'Expenses per month', v:F$(f.housing+f.living)+'/mo', sub:'January 2027',
-    what:`Everything you pay out in the first month. After that, ${f.rent>0?`rent rises ${pctS(p.rentG)} a year and `:''}cars, insurance and other spending rise with inflation (${pctS(p.infl)} a year).${f.taxBen>0?` Mortgage tax savings of ${F$(f.taxBen)}/mo aren't subtracted here; they count as extra take-home.`:''}`,
+    what:`Everything you pay out in the first month. After that, ${f.rent>0?`rent rises ${pctS(p.rentG)} a year and `:''}cars, insurance and other spending rise with inflation (${pctS(p.infl)} a year).${f.taxBen>0?` Mortgage tax savings (about ${F$(f.taxBen*12)}/yr) aren't subtracted here; they come back as a tax refund each April.`:''}`,
     steps, table:ytable(r,[['Housing',x=>x.housing],['Cars, ins., other',x=>x.living],['Road',x=>x.road+x.vanLoan]].filter(c=>c[0]!=='Road'||k==='van'))};
 };
 
@@ -2200,7 +2205,7 @@ XP.tax = k => {
   const y=Math.floor(i/12), g=Math.pow(1+p.raise/100,y), fac=r.kind==='van'?p.returnPct/100:1, fct=Math.pow(1+p.infl/100,i/12);
   const gross=p.gross*g*fac, st=gross*CO_TAX, ptY=f.pt*12, salt=Math.min(SALT_CAP,ptY+st), intY=f.interest*12, item=intY+salt, sd=STD_DED*fct, extra=Math.max(0,item-sd);
   return {eb:nm(k), t:'Mortgage tax savings', v:F$(f.taxBen)+'/mo', sub:mon(i),
-    what:`Owning only lowers your taxes by how much your itemized deductions beat the standard deduction, which you'd get anyway as renters. That extra is taxed at your federal bracket (24% assumed). The savings shrink as the interest portion of your payment falls.`,
+    what:`Not PMI (that's $0 at 20% down). This is the mortgage interest deduction. Owning only lowers your taxes by how much your itemized deductions beat the standard deduction, which you'd get anyway as renters, times your federal bracket (24% assumed). It isn't in your paychecks: the model pays it into checking as a refund each April for the prior year. It shrinks as the interest part of your payment falls.`,
     steps:[{l:'Mortgage interest, per year',f:`${F$(f.interest)}/mo × 12`,v:intY,x:'pi:'+k},
       {op:'+',l:'State + local tax (SALT)',f:`min(${F$(SALT_CAP)} cap, ${F$(ptY)} property tax + ${F$(st)} Colorado income tax at 4.4% of ${F$(gross)})`,v:salt,x:'in:gross'},
       {op:'=',l:'Itemized deductions',v:item,cls:'sub'},
@@ -2210,7 +2215,7 @@ XP.tax = k => {
       {op:'=',l:'Tax saved per year',v:extra*MARG,cls:'sub'},
       {op:'÷',l:'Months',v:12,fmt:'n'},
       {op:'=',l:'Tax savings per month',v:f.taxBen,cls:'total'}],
-    table:ytable(r,[['Interest paid',x=>x.interest],['Tax savings',x=>x.taxBen]])};
+    table:ytable(r,[['Interest paid',x=>x.interest],['Tax saved (earned)',x=>x.taxBen],['Refund received',x=>x.taxRef]])};
 };
 
 XP.bdd = k => {
@@ -2355,7 +2360,7 @@ XP.vl = () => {
 
 XP.run = () => {
   const p=A.p, v=A.R.van, ml=v.minLiq, until=Math.min(v.M, v.roadM+p.gap+6);
-  const rows=v.months.slice(0,until).map((x,i)=>[mon(i), x.road+x.vanLoan+x.housing+x.living, x.bank+x.side+x.taxBen, x.liq]);
+  const rows=v.months.slice(0,until).map((x,i)=>[mon(i), x.road+x.vanLoan+x.housing+x.living, x.bank+x.side+x.taxRef, x.liq]);
   const txt = A.runway===Infinity ? 'Whole trip' : (v.firstNeg.m===0?'Not covered':`${A.runway} of ${v.roadM} mo`);
   return {eb:nm('van'), t:'Do savings cover the trip?', v:txt, sub:A.runway===Infinity?`low point ${M$(B(p,ml.liq,ml.m))}, ${monEnd(ml.m)}`:'',
     what:`Tracks cash + brokerage month by month. Road costs come out of cash first, then brokerage, and whatever's left keeps earning. If the balance never goes below zero before paychecks restart, savings cover the trip.`,
@@ -2417,12 +2422,12 @@ XP.th = (k, m) => { m=+(m||0); const p=A.p, r=RUN(k), x=r.months[m], g=Math.pow(
   const base=x.onRoad||x.inGap?0:p.bank*g*fac, red=x.bank-base, steps=[];
   steps.push({l:'Paychecks that hit checking',f:x.onRoad?'No paycheck on the road':x.inGap?'Job search, no paycheck':`Your input${g!==1?` × raises (${nf(g,4)})`:''}${fac!==1?` × ${pctS(p.returnPct)} pay`:''}`,v:base,x:'in:bank'});
   if(red>0.5) steps.push({op:'+',l:'Brokerage deposit redirected to checking',v:red,x:r.kind==='van'?'in:bddVan':'in:bddOwn'});
-  if(x.taxBen>0) steps.push({op:'+',l:'Mortgage tax savings',v:x.taxBen,x:'tax:'+k});
+  if(x.taxRef>0) steps.push({op:'+',l:m===r.M-1?'Tax refund still owed from owning':'Tax refund from owning, prior year',f:'Arrives each April',v:x.taxRef,x:'tax:'+k});
   if(x.side>0) steps.push({op:'+',l:'Side income',v:x.side,x:'in:side'});
-  steps.push({op:'=',l:'Income',v:x.bank+x.taxBen+x.side,cls:'total'});
-  return {eb:nm(k), t:`Income, ${mon(m)}`, v:F$(x.bank+x.taxBen+x.side)+'/mo', what:'Money that lands in checking each month. Brokerage deposits and retirement contributions come out of pay before this.', steps}; };
+  steps.push({op:'=',l:'Income',v:x.bank+x.taxRef+x.side,cls:'total'});
+  return {eb:nm(k), t:`Income, ${mon(m)}`, v:F$(x.bank+x.taxRef+x.side)+'/mo', what:'Money that lands in checking. Brokerage deposits and retirement contributions come out of pay before this. Mortgage tax savings aren’t in monthly income; they arrive as a refund each April.', steps}; };
 
-XP.ab = (k, m) => { m=+(m||0); const r=RUN(k), x=r.months[m], steps=[{l:'Income',f:'What hits checking',v:x.bank+x.taxBen+x.side,x:`th:${k}:${m}`}];
+XP.ab = (k, m) => { m=+(m||0); const r=RUN(k), x=r.months[m], steps=[{l:'Income',f:'What hits checking',v:x.bank+x.taxRef+x.side,x:`th:${k}:${m}`}];
   if(x.housing) steps.push({op:'−',l:'Housing',v:x.housing,x:'hs:'+k});
   if(x.living) steps.push({op:'−',l:'Cars, insurance, other',v:x.living,x:'exp:'+k});
   if(x.road) steps.push({op:'−',l:'Road costs',v:x.road,x:'vb'});
