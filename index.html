@@ -2279,15 +2279,16 @@ function renderNow(){
   ],{fmt:v=>(v<0?'−':'')+F$(Math.abs(v))});
   document.getElementById('n-engine-note').innerHTML = `Brokerage deposits and retirement contributions come out of pay before income hits checking. ${solo?`Showing ${whoName(W)}’s pay, deposits and share of bills as entered; rent is split 50/50. `:''}${P.rentNow>0?'':'<b>Current rent isn’t entered</b>, so this uses your yard-house rent. '}Saving rate = what you invest + positive net income, as a share of everything you earn after tax.`;
   // between now and the decision
-  const LE=r.LE, T=r.T, at=m=>{ const x=r.all[Math.min(m,r.M)]; return {nw:B(A0,x.nw,x.m), liq:B(A0,x.liq,x.m)}; };
+  const LE=r.LE, T=r.T, at=m=>{ const x=r.all[Math.min(m,r.M)]; return {nw:B(A0,x.nw,x.m), liq:B(A0,x.liq,x.m), cash:B(A0,x.cash,x.m), brok:B(A0,x.brok,x.m)}; };
   document.getElementById('n-path-sub').textContent = `${solo?'Household · ':''}The three paths are identical until ${mon(T)}`;
-  const hnw=P.cash+P.brok+P.retire, hliq=P.cash+P.brok;
+  const hnw=P.cash+P.brok+P.retire, hliq=P.cash+P.brok, split=o=>`Cash ${M$(o.cash)} · brokerage ${M$(o.brok)}`;
   const step=(k,dt,v,sub,x)=>`<div class="n-step"><div class="k">${k}</div><div class="d">${dt}</div><div class="v">${XK(x,M$(v))}</div><div class="s">${sub}</div></div>`;
   const nwT=at(T).nw, liqT=at(T).liq;
   document.getElementById('n-steps').innerHTML =
-    step('Today',fmtDay(d),hnw,`${M$(hliq)} liquid`,'nwnow:b')+
-    step('Lease ends',monEnd(LE),at(LE).nw,`${M$(at(LE).liq)} liquid · +${M$(at(LE).nw-hnw)} from today`,`nw:rent:${LE}`)+
-    step('Paths split',`${mon(T)}: rent moves, buy closes, van leaves`,nwT,`${M$(liqT)} liquid · +${M$(nwT-hnw)} from today`,`nw:rent:${T}`);
+    step('Today',fmtDay(d),hnw,split(P),'nwnow:b')+
+    step('Lease ends',monEnd(LE),at(LE).nw,`${split(at(LE))} · +${M$(at(LE).nw-hnw)} from today`,`nw:rent:${LE}`)+
+    step('Paths split',`${mon(T)}: rent moves, buy closes, van leaves`,nwT,`${split(at(T))} · +${M$(nwT-hnw)} from today`,`nw:rent:${T}`);
+  document.getElementById('n-steps').insertAdjacentHTML('beforeend',`<div class="up-note" style="grid-column:1/-1;margin-top:4px">Cash stays near your ${P.cashMonths}-month cushion (${M$(P.cashMonths*(((P.rentNow>0?P.rentNow:P.rent))+livingOf(P)))}); anything above it is moved to brokerage each month. Change the cushion under Assumptions → Markets, cash + horizon.</div>`);
 }
 /* =================== cash flow statement =================== */
 let CF = (()=>{ try{ return Object.assign({k:'rent',per:'y',yr:0}, JSON.parse(store.get('homeOrRoad.cf')||'{}')); }catch(e){ return {k:'rent',per:'y',yr:0}; } })();
