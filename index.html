@@ -800,10 +800,10 @@ table.nw-t{width:100%;font-size:13px}
     <div class="drawers">
       <details class="drawer" data-d="method"><summary><div><b>How the model works</b><span>Cash flow rules, taxes, stress cases</span></div><i class="chev"></i></summary>
       <div class="drawer-b method">
-        <p><b>Monthly model, January 2027 onward.</b> Pay and retirement contributions go up once a year with your raise. Car, insurance, other spending, homeowner costs and road costs go up with inflation. Rent goes up at its own rate.</p>
-        <p><b>Where money goes.</b> Brokerage direct deposits go straight into brokerage. Bank deposits pay the bills, and what's left stays in cash. A shortfall is pulled from brokerage. Down payments and the van come out of cash first, then brokerage. If both run dry, the model treats the shortfall as borrowing at the investment return and flags the month it happened.</p>
+        <p><b>Monthly model, starting the day your balances are from.</b> The first month counts only the days left in it. Pay and retirement contributions go up once a year with your raise. Car, insurance, other spending, homeowner costs and road costs go up with inflation. Rent goes up at its own rate.</p>
+        <p><b>Where money goes.</b> Brokerage direct deposits go straight into brokerage. Bank deposits pay the bills, and what's left stays in cash. A shortfall is pulled from brokerage. Down payments, the van and any shortfall come out of brokerage first; the emergency fund is only used once brokerage is empty. If both run dry, the model treats the shortfall as borrowing at the investment return and flags the month it happened.</p>
         <p><b>Returns.</b> Cash earns the cash yield. Brokerage and retirement earn the investment return. Taxes on brokerage gains aren't modeled, and retirement is never withdrawn.</p>
-        <p><b>Buying.</b> Home equity is counted after the cost to sell. Mortgage interest adds a tax benefit only above the $32,200 standard deduction, with SALT capped at $40K, a 24% bracket and 4.4% Colorado tax. PMI of 0.5% a year applies below 20% down, until the loan reaches 78% of the price. Buying later on the rent path uses the house inputs, with the price grown by home value growth.</p>
+        <p><b>Buying.</b> Home equity is counted after the cost to sell. Mortgage interest adds a tax benefit only above the $32,200 standard deduction, with SALT capped at $40K (rising 1%/yr) through 2029 and $10K from 2030 under current law, a 24% bracket and 4.4% Colorado tax. PMI of 0.5% a year applies below 20% down, until the loan reaches 78% of the price. Buying later on the rent path uses the house inputs, with the price grown by home value growth.</p>
         <p><b>Van life.</b> No pay and no retirement contributions on the road. Car and insurance stop because the road budget covers them. A financed van uses a 60-month loan, and the balance is paid off from the sale. The van loses value evenly and sells when you return. After the job search, pay restarts at the share you set.</p>
         <p><b>Downside and upside cases.</b> Downside: investment return 3 points lower, home prices flat, maintenance +0.5 points, rent growth +2 points, road costs +20%, pay back 15 points lower after 6 extra months of searching. Upside: return 1.5 points higher, home value growth +1.5 points, rent growth −1 point, road costs −10%, pay back 10 points higher.</p>
       </div></details>
@@ -908,7 +908,8 @@ const XM = m => T0Y + (T0M+m)/12, calY = m => Math.floor((T0M+m)/12), yrOfM = m 
 function ymIdx(v){ const [y,mo]=String(v||'').split('-').map(Number); if(!y||!mo) return null; return Math.max(0,(y-T0Y)*12+(mo-1)-T0M+1); }   // index of the month after v
 const leIdx = p => ymIdx(p.leaseEnd) ?? 0;
 const tIdx = p => { const e=ymIdx(p.m2mEnd); return Math.max(leIdx(p), e ?? leIdx(p)+Math.max(0,Math.round(p.m2m||0))); };
-const STD_DED = 32200, SALT_CAP = 40000, MARG = 0.24, CO_TAX = 0.044, PMI_RATE = 0.5, VAN_TERM = 60;
+const saltCapFor = y => y<2025 ? 10000 : y<=2029 ? 40000*Math.pow(1.01, y-2025) : 10000;   // OBBBA; phase-down above $500K income not modeled
+const STD_DED = 32200, MARG = 0.24, CO_TAX = 0.044, PMI_RATE = 0.5, VAN_TERM = 60;
 const PEOPLE = ['Will','Megan'];
 const BOXES = {
   'box-savings': {title:'Savings', people:true, fields:[
@@ -1010,10 +1011,14 @@ const EDIT = {};
 function save(){ store.set('homeOrRoad.v3', JSON.stringify(Object.assign({}, P, {v4:true}))); }
 /* shared store: plan/main holds the inputs, houses/* holds saved homes */
 let DB=null, PLAN_REF=null, HOUSES_COL=null, READONLY=false, SEEDED=false, WRITING=false, AGAIN=false, REMOTE_WAITING=null, SHARED_READY=false, LOCAL_DIFFERS=false;
-function stateOf(q){ return Object.assign(clone(q), {v4:true}); }
+// Bump APP_VER whenever the saved plan's shape or the model changes. A tab running older code reloads
+// instead of saving over a plan written by newer code (that is how the as-of date got wiped).
+const APP_VER = 12; let REMOTE_VER = 0;
+function stateOf(q){ return Object.assign(clone(q), {v4:true, appVer:APP_VER}); }
 function commit(){ save(); if(PLAN_REF && !READONLY) writePlan(); }
 async function writePlan(){
   if(WRITING){ AGAIN=true; return; } WRITING=true;
+  if(REMOTE_VER > APP_VER){ location.reload(); return; }
   try{ do{ AGAIN=false; await PLAN_REF.set({state:stateOf(P), updatedAt:Date.now()}); } while(AGAIN); }
   catch(e){ if(e&&e.code==='invalid_argument'){ READONLY=true; setSync(); if(TAB==='inputs') Object.keys(BOXES).forEach(renderBox); } }
   finally{ WRITING=false; }
@@ -1028,6 +1033,8 @@ function setSync(){
   const dl=document.getElementById('dismiss-local'); if(dl) dl.onclick=()=>{ LOCAL_DIFFERS=false; setSync(); };
 }
 function applyRemote(st){
+  REMOTE_VER = Math.max(REMOTE_VER, +(st&&st.appVer)||0);
+  if(REMOTE_VER > APP_VER){ location.reload(); return; }
   const q=fromState(st); if(JSON.stringify(q)===JSON.stringify(P)) return;
   if(Object.keys(EDIT).length){ REMOTE_WAITING=st; return; }
   P=q; save(); if(TAB==='inputs') Object.keys(BOXES).forEach(renderBox); recompute();
@@ -1125,7 +1132,7 @@ function run(kind, p){
     if(kind==='van' && m===roadEnd){ vanSaleNet=van-vanBal; cash+=vanSaleNet; evSale+=vanSaleNet; van=0; vanBal=0; }
     if(laterBuyM!==null && laterBuyM>0 && m===laterBuyM && !bought) buyHome(m);
     const rp=p.returnPct/100, rk=m-(roadEnd+p.gap), rM=Math.max(0,p.catchUp||0)*12;
-    const fac = kind==='van' && m>=roadEnd ? (rM>0 && rk>0 ? Math.min(Math.max(rp,1), rp+(1-rp)*rk/rM) : rp) : 1;
+    const fac = kind==='van' && m>=roadEnd ? (rM>0 && rk>0 ? (rp>1 ? Math.max(1, rp+(1-rp)*rk/rM) : Math.min(1, rp+(1-rp)*rk/rM)) : rp) : 1;
     const r = {bank:0,bdd:0,contrib:0,rent:0,pi:0,interest:0,pt:0,hins:0,maint:0,hoa:0,util:0,pmi:0,car:0,ins:0,other:0,road:0,vanLoan:0,side:0,taxBen:0,taxRef:0,redir:0};
     if(onRoad){
       r.side=p.side*f; r.road=roadBurn(p)*roadMul*f; van-=vanDep;
@@ -1148,7 +1155,7 @@ function run(kind, p){
         r.pt=home*p.ptax/100/12; r.hins=p.hins*f/12; r.maint=home*(p.maint+(p._maintAdd||0))/100/12; r.hoa=p.hoa*f; r.util=p.util*f;
         if(p.down<20 && mort>0.78*price0) r.pmi=loan0*PMI_RATE/100/12;
         if(r.bank+r.bdd>0){
-          const grossM=p.gross*g*fac/12, salt=Math.min(SALT_CAP,(r.pt+grossM*CO_TAX)*12);
+          const grossM=p.gross*g*fac/12, salt=Math.min(saltCapFor(T0Y+calY(m)),(r.pt+grossM*CO_TAX)*12);
           r.taxBen=Math.max(0, r.interest*12+salt-STD_DED*f)*MARG/12;
         }
       } else r.rent = rentAt(m);
@@ -1169,8 +1176,9 @@ function run(kind, p){
     // keep the emergency fund at target: excess goes to brokerage; a shortfall is topped up from brokerage while it has money
     if(cash>tgt){ r.sweep=cash-tgt; } else if(cash<tgt && brok>0){ r.sweep=-Math.min(tgt-cash, brok); }
     cash-=r.sweep; brok+=r.sweep;
-    r.brokDraw=draw; r.invested=r.bdd+r.contrib; r.brokGrowth=brok*ri; r.retGrowth=retire*ri; r.cashGrowth=cash>0?cash*rc:0;
-    cash *= cash>0?(1+rc):1; brok *= (1+ri); retire *= (1+ri);   // a negative brokerage balance = borrowing, charged at the investment return
+    const gf=(m===0&&M0F<1)?M0F:1, gi=Math.pow(1+ri,gf)-1, gc=Math.pow(1+rc,gf)-1;   // first month grows only for the days left in it
+    r.brokDraw=draw; r.invested=r.bdd+r.contrib; r.brokGrowth=brok*gi; r.retGrowth=retire*gi; r.cashGrowth=cash>0?cash*gc:0;
+    cash *= cash>0?(1+gc):1; brok *= (1+gi); retire *= (1+gi);   // a negative brokerage balance = borrowing, charged at the investment return
     r.fac=fac; r.oneClose=evClose; r.oneVan=evVan; r.oneSale=evSale; r.oneCar=evCar; evClose=evVan=evSale=evCar=0; Object.assign(r, snap(m+1)); r.onRoad=onRoad; r.inGap=inGap; r.pre=pre;
     months.push(r);
   }
@@ -1191,9 +1199,10 @@ function run(kind, p){
 }
 
 const yFull = (run,y) => run.years.find(x=>x.year===START_YEAR+y-1) || run.years[run.years.length-1];
-const dfl = (p,m) => REAL ? Math.pow(1+p.infl/100, m/12) : 1;
+const effM = m => m<=0 ? 0 : m-1+M0F;   // months actually elapsed (month 0 is a partial month)
+const dfl = (p,m) => REAL ? Math.pow(1+p.infl/100, effM(m)/12) : 1;
 const B = (p,v,m) => v/dfl(p,m);
-const TODAY = (p,v,m) => v/Math.pow(1+p.infl/100, m/12);
+const TODAY = (p,v,m) => v/Math.pow(1+p.infl/100, effM(m)/12);
 function variant(p, o){ return Object.assign({}, p, o); }
 function downside(p){ return variant(p,{ret:p.ret-3, app:0, _maintAdd:0.5, rentG:p.rentG+2, _roadMul:1.2, returnPct:Math.max(0,p.returnPct-15), gap:p.gap+6}); }
 function upside(p){ return variant(p,{ret:p.ret+1.5, app:p.app+1.5, rentG:Math.max(0,p.rentG-1), _roadMul:0.9, returnPct:p.returnPct+10}); }
@@ -1211,7 +1220,7 @@ function computeAll(p){
   const pd=downside(p), pu=upside(p);
   const D={rent:run('rent',pd), buy:run('buy',pd), van:run('van',pd)};
   const U={rent:run('rent',pu), buy:run('buy',pu), van:run('van',pu)};
-  let be=null; for(let i=1;i<R.buy.all.length;i++){ if(R.buy.all[i].nw>=R.rent.all[i].nw){ be=i; break; } }
+  let be=null; for(let i=R.buy.all.length-1;i>R.buy.buyM+1;i--){ if(R.buy.all[i].nw>=R.rent.all[i].nw) be=i; else break; }   // first month after which buying stays ahead
   // break-even home value growth (buy = rent path at horizon)
   const beApp = beAppFor(p);
   const appRows=[p.app-3,p.app-1.5,p.app,p.app+1.5,p.app+3].map(v=>Math.round(v*100)/100);
@@ -1233,7 +1242,7 @@ function computeAll(p){
 function vanCost(A){
   const p=A.p, r=A.R.rent, v=A.R.van, M=r.M, gM=Math.pow(1+p.ret/100,1/12);
   const det={saved:[],road:[],van:[],gap:[],pay:[],contrib:[],pre:[],car:[]};
-  const add=(k,m,amt,lab)=>{ const g=Math.pow(gM,M-m-1); det[k].push({m,amt,g,fv:amt*g,tod:TODAY(p,amt,m),lab}); return amt*g; };
+  const add=(k,m,amt,lab)=>{ const g=Math.pow(gM, m===0 ? M-1+M0F : M-m); det[k].push({m,amt,g,fv:amt*g,tod:TODAY(p,amt,m),lab}); return amt*g; };
   let saved=0, road=0, loan=0, gapM=0, pay=0, contrib=0, preM=0;
   for(let m=0;m<M;m++){
     const a=r.months[m], b=v.months[m];
@@ -1244,7 +1253,7 @@ function vanCost(A){
     else pay += add('pay',m,a.saved-b.saved);
   }
   if(p.carSale>0) add('car',v.vS,-p.carSale,'Car sold');
-  const vanNet = add('van',v.vS,v.vanCashIn,'Van + setup') + loan + add('van',v.vS+v.roadM-1,-v.vanSaleNet,'Van sold');
+  const vanNet = add('van',v.vS,v.vanCashIn,'Van + setup') + loan + add('van',Math.min(v.vS+v.roadM,M-1),-v.vanSaleNet,'Van sold');
   const total = r.end.nw - v.end.nw, T = x => TODAY(p,x,M);
   // each part = its cash, in today's dollars as of when it happens; the growth that cash would have earned is one separate line
   const cashOf = k => det[k].reduce((a,x)=>a+x.tod,0), fvOf = k => T(det[k].reduce((a,x)=>a+x.fv,0));
@@ -1269,12 +1278,13 @@ function vanCost(A){
 function ownCost(A){
   const p=A.p, b=A.R.buy, r=A.R.rent; let o={interest:0,pt:0,hins:0,maint:0,hoa:0,util:0,pmi:0,tax:0,rent:0};
   b.months.forEach(x=>{ const d=dfl(p,x.m-1); o.interest+=x.interest/d; o.pt+=x.pt/d; o.hins+=x.hins/d; o.maint+=x.maint/d; o.hoa+=x.hoa/d; o.util+=x.util/d; o.pmi+=x.pmi/d; o.tax+=x.taxBen/d; });
-  r.months.forEach(x=>{ o.rent+=x.rent/dfl(p,x.m-1); });
+  r.months.forEach((x,i)=>{ if(i>=b.buyM) o.rent+=x.rent/dfl(p,x.m-1); });   // same period as owning: from closing on
   const e=b.end, sellCost=B(p,e.home*p.sell/100,e.m), apprec=B(p,e.home-b.price0,e.m);
   const opp = B(p,b.cashAtClose*(Math.pow(1+p.ret/100,(b.M-b.buyM)/12)-1),e.m);
   const rows=[['Mortgage interest',o.interest,'interest'],['Property tax',o.pt,'pt'],['Homeowners insurance',o.hins,'hins'],['Maintenance',o.maint,'maint'],['HOA + extra utilities',o.hoa+o.util,'hoa']];
   if(o.pmi>1) rows.push(['PMI',o.pmi,'pmi']);
-  rows.push(['Closing costs to buy',b.closeCost,'close'],['Cost to sell at the end',sellCost,'sell'],['Return given up on cash at closing',opp,'opp'],['Mortgage tax savings',-o.tax,'tax'],['Home value growth',-apprec,'apprec']);
+  if(b.renoCost>0) rows.push(['Renovation',B(p,b.renoCost,b.buyM),'reno']);
+  rows.push(['Closing costs to buy',B(p,b.closeCost,b.buyM),'close'],['Cost to sell at the end',sellCost,'sell'],['Return given up on cash at closing',opp,'opp'],['Mortgage tax savings',-o.tax,'tax'],['Home value growth',-apprec,'apprec']);
   return {rows, own:rows.reduce((a,x)=>a+x[1],0), rent:o.rent};
 }
 
@@ -1283,7 +1293,7 @@ const NAME = p => ({rent: p.rentBuyYears>0 ? `Rent → Buy ${yrOfM(tIdx(p)+Math.
 const COL = {rent:'--rent', buy:'--buy', van:'--van'};
 const VS = p => p.rentBuyYears>0 ? 'vs. rent-then-buy' : 'vs. renting';
 function liqStatus(run){
-  const ml=run.minLiq, f=run.first, cushion=6*(f.housing+f.living+f.road), v=B(run.p,ml.liq,ml.m), fn=run.firstNeg;
+  const ml=run.minLiq, f=run.first, cushion=(run.p.cashMonths??6)*(f.housing+f.living+f.road+f.vanLoan), v=B(run.p,ml.liq,ml.m), fn=run.firstNeg;
   if(fn){
     let t;
     if(run.kind==='van' ? fn.m<=run.vanIdx : fn.m===0) t = run.kind==='van' ? 'Van costs more than your cash' : 'Short at closing';
@@ -1446,7 +1456,7 @@ function renderSummary(){
     ['Brokerage', k=>M$(B(p,R[k].end.brok,R[k].end.m)), k=>R[k].end.brok<0?'neg':'', k=>'endB:'+k],
     ['Retirement', k=>M$(B(p,R[k].end.retire,R[k].end.m)), null, k=>'endR:'+k],
     ['Cash', k=>M$(B(p,R[k].end.cash,R[k].end.m)), null, k=>'endC:'+k],
-    ['sec',`${H}-year totals`],
+    ['sec',`Totals, ${mon(0)} – ${E}`],
     ['Total saved (burned)', k=>M$(cumSaved(k)), k=>cumSaved(k)<0?'neg':'', k=>'tot:saved:'+k],
     ['Total housing paid', k=>M$(R[k].months.reduce((a,x)=>a+x.housing/dfl(p,x.m-1),0)), null, k=>'tot:housing:'+k],
     ['Retirement contributions', k=>M$(R[k].months.reduce((a,x)=>a+x.contrib/dfl(p,x.m-1),0)), null, k=>'tot:contrib:'+k],
@@ -1552,7 +1562,7 @@ async function writeAI(){
   if(!SAMPLE||AI_BUSY) return;
   AI_BUSY=true; AI_ERR=''; AI_CTL=new AbortController(); renderAnalysis();
   const key=JSON.stringify(P);
-  const prompt=`You are a sharp personal-finance analyst writing for Will (29) and Megan (34), a married couple in Denver deciding what to do when their lease ends Dec 31, 2026: rent (optionally buying later), buy a house now, or quit their corporate jobs for van life. Will works in real estate acquisitions and is fluent in finance, so be direct and numerate. No filler, no generic advice.
+  const prompt=`You are a sharp personal-finance analyst writing for Will (30) and Megan (34), a married couple in Denver deciding what to do when their lease ends (${mon(A.R.rent.LE-1)}, then month-to-month until ${mon(A.R.rent.T-1)}): rent (optionally buying later), buy a house now, or quit their corporate jobs for van life. Will works in real estate acquisitions and is fluent in finance, so be direct and numerate. No filler, no generic advice.
 
 Model outputs (today's dollars). Use ONLY these numbers; don't invent figures. Round sensibly ($1.2M, $340K, $4,150/mo).
 
@@ -1605,14 +1615,14 @@ function renderRent(){
   kpis(document.getElementById('r-kpis'),[
     [`Invested per month, ${mon(r.firstM)}`,F$(invM),XK('ab:rent',chip('+'+F$(Math.max(0,f.bankNet))+'/mo net income','nt')),'','inv:rent'],
     [`Net worth, end of ${E}`,M$(nwE),`${XK('cs:D:rent',chip('Downside '+M$(B(p,A.D.rent.end.nw,A.D.rent.end.m)),'nt'))}`,'','nw:rent'],
-    later?['Home purchase',mon(r.buyM),`${M$(r.price0)} · ${M$(r.cashAtClose)} to close`,'','cl:rent']:[`Rent paid over ${H} yrs`,M$(rentPaid),`${F$(p.rent)}/mo today`,'','tot:rent:rent'],
+    later?['Home purchase',mon(r.buyM),`${M$(r.price0)} · ${M$(r.cashAtClose)} to close`,'','cl:rent']:[`Rent paid, ${mon(0)}–${E}`,M$(rentPaid),`${F$(p.rent)}/mo today`,'','tot:rent:rent'],
     ['Investments at the end',M$(B(p,r.end.brok+r.end.retire,r.end.m)),'Brokerage '+XK('endB:rent',M$(B(p,r.end.brok,r.end.m)))+' · retirement '+XK('endR:rent',M$(B(p,r.end.retire,r.end.m)))],
   ]);
   document.getElementById('r-lg').innerHTML = stackChart('c-r-comp', r, later?[COMP.retire,COMP.brok,COMP.cash,COMP.equity]:[COMP.retire,COMP.brok,COMP.cash]);
   const lastRent=r.months.filter(x=>x.rent>0).slice(-1)[0], d1=B(p,run('rent',variant(p,{rentG:p.rentG+1})).end.nw-r.end.nw,r.end.m);
   document.getElementById('r-ins').innerHTML = `
     <p><b>Savings engine.</b> ${F$(f.bdd)}/mo goes to brokerage and ${F$(f.contrib)}/mo to retirement, and checking keeps another ${F$(Math.max(0,f.bankNet))}/mo of net income. That's ${pct(rate)} of everything you earn after tax.</p>
-    <p><b>Returns do the work.</b> Most of this net worth is invested. At ${p.ret-3}% instead of ${p.ret}%, you end at ${M$(B(p,A.D.rent.end.nw,A.D.rent.end.m))}.</p>
+    <p><b>Returns do the work.</b> Most of this net worth is invested. At ${p.ret-3}% instead of ${p.ret}%, you'd end at ${M$((q=>B(p,q.end.nw,q.end.m))(run('rent',variant(p,{ret:p.ret-3}))))}.</p>
     <p><b>Rent drift.</b> ${lastRent?`Rent reaches ${F$(lastRent.rent)}/mo by ${later?yrOfM(r.buyM-1):E} in future dollars. `:''}Each extra point of rent growth costs about ${M$(Math.abs(d1))}.</p>
     <p><b>Option value.</b> Liquidity means you can still buy or take the trip later. ${later?'':'Try "Buy in 2029" above to see the rent-first version.'}</p>`;
   document.getElementById('r-tsum').textContent = `${REAL?"Today's":'Future'} dollars, year by year · take-home, where it goes, and every account balance`;
@@ -1624,7 +1634,7 @@ function renderRent(){
 /* =================== buy =================== */
 function renderBuy(){
   const p=A.p, b=A.R.buy, r=A.R.rent, f=b.first, H=b.H, E=START_YEAR+H-1, N=NAME(p);
-  const nwB=B(p,b.end.nw,b.end.m), d=nwB-B(p,r.end.nw,r.end.m), extra=f.housing-f.taxBen-p.rent;
+  const nwB=B(p,b.end.nw,b.end.m), d=nwB-B(p,r.end.nw,r.end.m), rentT=A.R.rent.first.rent||p.rent, extra=f.housing-f.taxBen-rentT;
   const ah=HOUSES.find(h=>h.id===p.activeHome && +h.price===+p.price);
   document.getElementById('b-eyebrow').textContent = `Buy now · ${ah?ah.address:'closing '+mon(A.R.buy.buyM)} · ${F$(p.price)} at ${p.rate}%`;
   const beTxt = !isFinite(A.beApp) ? (A.beApp<0?'wins at any realistic appreciation':'doesn’t win at any realistic appreciation') : `needs ${hl('buy',(Math.round(A.beApp*10)/10)+'%','be')} a year of home value growth to break even`;
@@ -1641,7 +1651,7 @@ function renderBuy(){
   } else al.innerHTML = b.postClose < 6*(f.housing+f.living) ? alertHTML('warn',`<b>Thin cushion.</b> You'd have ${F$(b.postClose)} left after closing, less than six months of expenses (${F$(6*(f.housing+f.living))}).`) : '';
   kpis(document.getElementById('b-kpis'),[
     ['Cash to close + reno',M$(b.cashAtClose),`${chip((b.postClose<0?'−':'')+M$(Math.abs(b.postClose))+' left', b.postClose<0?'dn':b.postClose<6*(f.housing+f.living)?'wn':'nt')}`,'','cl:buy'],
-    [`All-in housing, ${mon(b.buyM)}`,F$(f.housing)+'/mo',chip('+'+F$(f.housing-p.rent)+' vs. rent','nt'),'','hs:buy'],
+    [`All-in housing, ${mon(b.buyM)}`,F$(f.housing)+'/mo',chip('+'+F$(f.housing-rentT)+' vs. rent','nt'),'','hs:buy'],
     [`Net worth, end of ${E}`,M$(nwB),`${XK('d:buy',dchip(d))} ${VS(p)}`,'','nw:buy'],
     ['Break-even home growth',isFinite(A.beApp)?(Math.round(A.beApp*10)/10)+'%/yr':(A.beApp<0?'Always wins':'Never'),chip(`You assume ${p.app}%`,isFinite(A.beApp)&&p.app>=A.beApp?'up':'dn'),'','be'],
   ]);
@@ -1670,8 +1680,8 @@ function renderBuy(){
   document.getElementById('b-exit').innerHTML = `<thead><tr><th>Sell at end of</th><th>Equity after sale</th><th>Net worth</th><th>${VS(p).replace('vs.','Vs.')}</th></tr></thead><tbody>`+
     exv.map(x=>`<tr><td>Year ${x.y} · ${START_YEAR+x.y-1}</td><td>${XK(`eq:buy:${x.yb.m}`,T$(B(p,x.yb.equity,x.yb.m)))}</td><td>${XK(`nw:buy:${x.yb.m}`,T$(B(p,x.yb.nw,x.yb.m)))}</td><td class="${x.d<0?'neg':'pos'}">${XK('xe:'+x.y,S$(x.d))}</td></tr>`).join('')+'</tbody>';
   const oc=ownCost(A);
-  document.getElementById('b-uc-sum').textContent = `${H}-year net cost of owning ${M$(oc.own)} vs. ${M$(oc.rent)} of rent, ${REAL?"today's":'future'} dollars`;
-  hbars(document.getElementById('b-uc'),[...oc.rows.map(([l,v,k2])=>[l,v,v<0?'var(--pos)':'var(--buy)','','oc:'+k2]),['Net cost of owning',oc.own,'var(--buy)','total','oc:own'],['Rent you’d pay instead',oc.rent,'var(--rent)','total','tot:rent:rent']],{fmt:v=>(v<0?'−':'')+M$(Math.abs(v))});
+  document.getElementById('b-uc-sum').textContent = `Net cost of owning ${M$(oc.own)} vs. ${M$(oc.rent)} of rent from ${mon(b.buyM)} to ${E}, ${REAL?"today's":'future'} dollars`;
+  hbars(document.getElementById('b-uc'),[...oc.rows.map(([l,v,k2])=>[l,v,v<0?'var(--pos)':'var(--buy)','','oc:'+k2]),['Net cost of owning',oc.own,'var(--buy)','total','oc:own'],['Rent you’d pay instead',oc.rent,'var(--rent)','total','oc:rent']],{fmt:v=>(v<0?'−':'')+M$(Math.abs(v))});
   document.getElementById('b-lg2').innerHTML = stackChart('c-b-comp', b, [COMP.retire,COMP.brok,COMP.cash,COMP.equity]);
   annualTable(document.getElementById('b-table'), b, [
     ['Income',y=>y.income],['Mortgage P+I',y=>y.pi],['Other home costs',y=>y.housing-y.pi],['Cars, ins., other',y=>y.living],['Net income',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
@@ -2328,6 +2338,7 @@ function cfLines(run){
     ['Emergency fund → brokerage (top-ups negative)', x=>x.sweep],
     ['Pulled from brokerage', (x,i)=>-(x.brokDraw+(i===0?run.draw0:0))],
     ['Retirement contributions', x=>x.contrib],
+    ['Money market interest', x=>x.cashGrowth],
     ['Investment growth', x=>x.brokGrowth+x.retGrowth],
     ['sec','Balances, end of period'],
     ['Emergency fund (money market)', x=>x.cash, 'bal'],
@@ -2368,7 +2379,7 @@ function renderCash(){
   document.getElementById('cf-table').innerHTML = `<thead><tr><th>${CF.per==='y'?'Year':String(CF.yr)}</th>${cols.map(c=>`<th class="${c.tot?'tc':''}">${c.h}${c.ph?`<span class="ph ${c.act?'act':''}">${c.ph}</span>`:''}</th>`).join('')}</tr></thead><tbody>`+
     lines.map(o=> o.sec ? `<tr class="sec"><td>${o.sec}</td>${cols.map(c=>`<td class="${c.tot?'tc':''}"></td>`).join('')}</tr>`
       : `<tr class="${o.cls||''}"><td>${o.l}</td>${cols.map(c=>{ const v=val(o,c); return `<td class="${c.tot?'tc ':''}${v<-0.5&&(o.cls==='grand'||o.l==='Cash'||o.l==='Brokerage')?'neg':''}">${fmt(v)}</td>`; }).join('')}</tr>`).join('')+'</tbody>';
-  document.getElementById('cf-note').innerHTML = `Future dollars. Parentheses are money going out. Net income = total income − total expenses; positive net income stays in checking, and anything above your ${p.cashMonths}-month cash cushion is moved to brokerage. When net income is negative or a one-time cost is due, the money comes from cash first, then brokerage (“Pulled from brokerage”). ${CF.per==='m'?'The small label under each month is what’s happening then.':'Balances are at the end of each year.'}`;
+  document.getElementById('cf-note').innerHTML = `Future dollars. Parentheses are money going out. Net income = total income − total expenses; positive net income stays in checking, and anything above your ${p.cashMonths}-month emergency fund is moved to brokerage. When net income is negative or a one-time cost is due, the money comes from brokerage first (“Pulled from brokerage”); the emergency fund is only used once brokerage is empty. ${CF.per==='m'?'The small label under each month is what’s happening then.':'Balances are at the end of each year.'}`;
   document.getElementById('cf-csv').onclick=()=>{
     const q=v=>/[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v;
     const head=[CF.per==='y'?'Line':String(CF.yr),...cols.map(c=>c.h+(c.ph&&CF.per==='m'?` (${c.ph})`:''))];
@@ -2429,8 +2440,8 @@ const UFMT = u => ({'$':'$','$mo':'$mo','$yr':'$yr','%':'%','yr':'yr','mo':'mo'}
 // deflate a future-dollar value to today's dollars (always=true ignores the Today's/Future toggle)
 function toToday(p, v, m, always){
   if((!REAL && !always) || m<=0) return [];
-  const f=Math.pow(1+p.infl/100, m/12);
-  return [{op:'÷', l:"Inflation back to today's dollars", f:`(1 + ${pctS(p.infl)}) ^ ${nf(m/12,2)} years`, v:f, fmt:'x', x:'in:infl'},
+  const f=Math.pow(1+p.infl/100, effM(m)/12);
+  return [{op:'÷', l:"Inflation back to today's dollars", f:`(1 + ${pctS(p.infl)}) ^ ${nf(effM(m)/12,2)} years`, v:f, fmt:'x', x:'in:infl'},
           {op:'=', l:"In today's dollars", v:v/f, cls:'total'}];
 }
 const DOL = always => (REAL||always) ? "today's dollars" : 'future dollars';
@@ -2453,7 +2464,7 @@ const COLDEF = {
   'Income':'Paychecks that hit checking (including any brokerage deposit redirected there), plus side income, plus the mortgage tax refund in April if you own.',
   'Housing':'Rent, or everything it costs to own: mortgage, property tax, insurance, maintenance, HOA, PMI.',
   'Cars, ins., other':'Cars, insurance and other recurring spending. Grows with inflation.',
-  'Net income':'Income minus housing and spending. A positive amount stays in checking, and anything above your cash cushion is moved to brokerage. A negative amount comes out of cash first, then brokerage.',
+  'Net income':'Income minus housing and spending. A positive amount stays in checking, and anything above your cash cushion is moved to brokerage. A negative amount comes out of brokerage first, then the emergency fund.',
   'To brokerage':'Direct deposits plus anything above your emergency fund target (negative when brokerage tops the fund back up).',
   'To retirement':'401(k)/IRA contributions, including the match. Grows with your raises.',
   'Mortgage P+I':'Principal and interest on the mortgage. Fixed for 30 years.',
@@ -2482,7 +2493,7 @@ XP.exp = k => {
   if(f.rent>0) steps.push({l:'Rent',f:'Your input; rises '+pctS(p.rentG)+'/yr',v:f.rent,x:'in:rent'});
   else steps.push({l:'Housing, all-in',f:'Mortgage, property tax, insurance, maintenance'+(f.hoa?', HOA':'')+(f.pmi?', PMI':''),v:f.housing,x:'hs:'+k});
   steps.push({op:'+',l:'Cars',v:f.car,x:'in:car'},{op:'+',l:'Insurance',v:f.ins,x:'in:ins'},{op:'+',l:'Other recurring',v:f.other,x:'in:other'},{op:'=',l:`Expenses, ${mon(r.firstM)}`,v:f.housing+f.living,cls:'total'});
-  return {eb:nm(k), t:'Expenses per month', v:F$(f.housing+f.living)+'/mo', sub:'January 2027',
+  return {eb:nm(k), t:'Expenses per month', v:F$(f.housing+f.living)+'/mo', sub:mon(RUN(k).firstM),
     what:`Everything you pay out in the first month. After that, ${f.rent>0?`rent rises ${pctS(p.rentG)} a year and `:''}cars, insurance and other spending rise with inflation (${pctS(p.infl)} a year).${f.taxBen>0?` Mortgage tax savings (about ${F$(f.taxBen*12)}/yr) aren't subtracted here; they come back as a tax refund each April.`:''}`,
     steps, table:ytable(r,[['Housing',x=>x.housing],['Cars, ins., other',x=>x.living],['Road',x=>x.road+x.vanLoan]].filter(c=>c[0]!=='Road'||k==='van'))};
 };
@@ -2490,7 +2501,7 @@ XP.exp = k => {
 XP.hs = k => {
   const p=A.p, r=RUN(k), f=r.first;
   if(f.onRoad) return {eb:nm(k), t:'Housing on the road', v:'$0', what:'No rent or mortgage while you live in the van. Road costs are counted under burn.', steps:[{l:'Housing',v:0,cls:'total'}]};
-  if(f.rent>0) return {eb:nm(k), t:'Housing per month', v:F$(f.housing)+'/mo', sub:'January 2027', what:`Rent for a house with a yard. It rises ${pctS(p.rentG)} a year, compounded monthly.`,
+  if(f.rent>0) return {eb:nm(k), t:'Housing per month', v:F$(f.housing)+'/mo', sub:mon(RUN(k).firstM), what:`Rent for a house with a yard. It rises ${pctS(p.rentG)} a year, compounded monthly.`,
     steps:[{l:`Rent, ${mon(r.firstM)}`,f:`Yard-house rent, grown ${pctS(p.rentG)}/yr from today`,v:f.rent,x:'in:rent'},{op:'=',l:'Housing',v:f.housing,cls:'total'}],
     table:ytable(r,[['Rent',x=>x.rent],['Owning costs',x=>x.housing-x.rent]])};
   const home1=r.all[(r.buyM||0)+1].home;
@@ -2524,11 +2535,11 @@ XP.pi = k => {
 XP.tax = k => {
   const p=A.p, r=RUN(k), i=r.buyM??0, f=r.months[i]; if(!f||!f.pi) return null;
   const y=calY(i), g=Math.pow(1+p.raise/100,y), fac=r.kind==='van'?p.returnPct/100:1, fct=Math.pow(1+p.infl/100,i/12);
-  const gross=p.gross*g*fac, st=gross*CO_TAX, ptY=f.pt*12, salt=Math.min(SALT_CAP,ptY+st), intY=f.interest*12, item=intY+salt, sd=STD_DED*fct, extra=Math.max(0,item-sd);
+  const gross=p.gross*g*fac, st=gross*CO_TAX, ptY=f.pt*12, salt=Math.min(saltCapFor(T0Y+calY(i)),ptY+st), intY=f.interest*12, item=intY+salt, sd=STD_DED*fct, extra=Math.max(0,item-sd);
   return {eb:nm(k), t:'Mortgage tax savings', v:F$(f.taxBen)+'/mo', sub:mon(i),
-    what:`Not PMI (that's $0 at 20% down). This is the mortgage interest deduction. Owning only lowers your taxes by how much your itemized deductions beat the standard deduction, which you'd get anyway as renters, times your federal bracket (24% assumed). It isn't in your paychecks: the model pays it into checking as a refund each April for the prior year. It shrinks as the interest part of your payment falls.`,
+    what:`${p.down>=20?'Not PMI (that’s $0 at 20% down). ':''}This is the mortgage interest deduction. Owning only lowers your taxes by how much your itemized deductions beat the standard deduction, which you'd get anyway as renters, times your federal bracket (24% assumed). It isn't in your paychecks: the model pays it into checking as a refund each April for the prior year. It shrinks as the interest part of your payment falls.`,
     steps:[{l:'Mortgage interest, per year',f:`${F$(f.interest)}/mo × 12`,v:intY,x:'pi:'+k},
-      {op:'+',l:'State + local tax (SALT)',f:`min(${F$(SALT_CAP)} cap, ${F$(ptY)} property tax + ${F$(st)} Colorado income tax at 4.4% of ${F$(gross)})`,v:salt,x:'in:gross'},
+      {op:'+',l:'State + local tax (SALT)',f:`min(${F$(saltCapFor(T0Y+calY(i)))} cap for ${T0Y+calY(i)}, ${F$(ptY)} property tax + ${F$(st)} Colorado income tax at 4.4% of ${F$(gross)})`,v:salt,x:'in:gross'},
       {op:'=',l:'Itemized deductions',v:item,cls:'sub'},
       {op:'−',l:'Standard deduction, married',f:'You get this without owning',v:sd},
       {op:'=',l:'Extra deduction from owning',v:extra,cls:'sub'},
@@ -2556,7 +2567,7 @@ XP.bdd = k => {
     const g=Math.pow(1+p.raise/100,calY(r.firstM));
     steps=[{l:'Brokerage direct deposit',f:'Your input (Will + Megan)',v:p.bdd,x:'in:bdd'}];
     if(g>1) steps.push({op:'×',l:'Raises until then',f:`(1 + ${pctS(p.raise)}) ^ ${calY(r.firstM)}`,v:g,fmt:'x',x:'in:raise'},{op:'=',l:`Deposit in ${mon(r.firstM)}`,v:p.bdd*g,cls:'sub'});
-    if(r.kind==='buy'){ steps.push({op:'×',l:'Share kept while owning',v:p.bddOwn,fmt:'%',x:'in:bddOwn'}); notes.push(`The other ${F$(p.bdd-f.bdd)}/mo goes to checking to help pay for the house.`); }
+    if(r.kind==='buy'){ steps.push({op:'×',l:'Share kept while owning',v:p.bddOwn,fmt:'%',x:'in:bddOwn'}); notes.push(`The other ${F$(f.redir)}/mo goes to checking to help pay for the house.`); }
     steps.push({op:'=',l:`To brokerage, ${mon(r.firstM)}`,v:f.bdd,cls:'total'});
     if(r.kind==='rent' && r.buyM!==null) notes.push(`From ${mon(r.buyM)}, when you buy, it drops to ${pctS(p.bddOwn)} of the deposit.`);
   }
@@ -2585,7 +2596,7 @@ XP.con = k => {
 };
 
 XP.inv = k => { const r=RUN(k), f=r.first;
-  return {eb:nm(k), t:'Invested per month', v:F$(f.bdd+f.contrib)+'/mo', sub:'January 2027', what:'Everything going into investments automatically each month.',
+  return {eb:nm(k), t:'Invested per month', v:F$(f.bdd+f.contrib)+'/mo', sub:mon(RUN(k).firstM), what:'Everything going into investments automatically each month.',
     steps:[{l:'Brokerage direct deposit',v:f.bdd,x:'bdd:'+k},{op:'+',l:'Retirement contributions',v:f.contrib,x:'con:'+k},{op:'=',l:'Invested per month',v:f.bdd+f.contrib,cls:'total'}]}; };
 
 XP.endB = k => {
@@ -2634,7 +2645,7 @@ XP.low = k => { const p=A.p, r=RUN(k), ml=r.minLiq;
     table:ytable(r,[['Lowest month',x=>x.liq,'min'],['Year end',x=>x.liq,'end']])}; };
 
 XP.nw = (k, m) => {
-  const p=A.p, r=RUN(k); m = m!==undefined ? Math.min(r.M,+m) : r.M; const s=r.all[m], atEnd=m===r.M, yr=m>0?yrOfM(m-1):T0Y;
+  const p=A.p, r=RUN(k); m = m!==undefined ? Math.min(r.M,+m) : r.M; const s=r.all[m], atEnd=m===r.M, yr=m<=0?'today':((T0M+m)%12===0?String(yrOfM(m-1)):monEnd(m));
   const steps=[{l:'Emergency fund',v:s.cash,x:atEnd?'endC:'+k:null},{op:'+',l:'Brokerage',v:s.brok,x:atEnd?'endB:'+k:null},{op:'+',l:'Retirement',v:s.retire,x:atEnd?'endR:'+k:null}];
   if(s.home>0) steps.push({op:'+',l:'Home equity, after selling costs',v:s.equity,x:`eq:${k}:${m}`});
   if(s.van>0) steps.push({op:'+',l:'Van, less any loan',f:'Loses value evenly until you sell it',v:s.van-s.vanBal});
@@ -2686,7 +2697,7 @@ XP.run = () => {
   const rows=v.months.slice(0,until).map((x,i)=>[mon(i)+(x.pre?' · working':x.onRoad?' · road':x.inGap?' · job search':''), x.road+x.vanLoan+x.housing+x.living, x.bank+x.side+x.taxRef, x.liq]);
   const txt = A.runway===Infinity ? 'Whole trip' : (v.firstNeg.m<=v.vanIdx?'Not covered':`${A.runway} of ${v.roadM} mo`);
   return {eb:nm('van'), t:'Do savings cover the trip?', v:txt, sub:A.runway===Infinity?`low point ${M$(B(p,ml.liq,ml.m))}, ${monEnd(ml.m)}`:'',
-    what:`Tracks cash + brokerage month by month. Road costs come out of cash first, then brokerage, and whatever's left keeps earning. If the balance never goes below zero before paychecks restart, savings cover the trip.`,
+    what:`Tracks cash + brokerage month by month. Road costs come out of brokerage first, then the emergency fund, and whatever's left keeps earning. If the balance never goes below zero before paychecks restart, savings cover the trip.`,
     steps:[{l:'Cash + brokerage today',v:p.cash+p.brok,x:'in:cash'},
       ...(v.vS>0?[{op:'+',l:`Saved while working until ${mon(v.vS)}`,f:`${v.vS} more months of paychecks and deposits (lease + month-to-month), plus growth`,v:hv-(p.cash+p.brok),x:'in:leaseEnd'},{op:'=',l:'When you buy the van',v:hv,cls:'sub'}]:[]),
       ...(p.carSale>0?[{op:'+',l:'Car sold',v:p.carSale,x:'in:carSale'}]:[]),
@@ -2775,7 +2786,7 @@ XP.ab = (k, m) => { const r=RUN(k); m = m===undefined ? r.firstM : +m; const x=r
   if(x.vanLoan) steps.push({op:'−',l:'Van loan',v:x.vanLoan,x:'vl'});
   steps.push({op:'=',l:'Net income',v:x.bankNet,cls:'total'});
   return {eb:nm(k), t:`Net income, ${mon(m)}`, v:(x.bankNet<0?'−':'+')+F$(Math.abs(x.bankNet))+'/mo',
-    what: x.bankNet<0 ? 'Checking comes up short this month, so the model covers the gap from cash first, then brokerage.' : 'This stays in checking. Once checking is above your cash cushion, the extra is moved to brokerage.', steps}; };
+    what: x.bankNet<0 ? 'Checking comes up short this month, so the model covers the gap from brokerage first, then the emergency fund.' : 'This stays in checking. Once it’s above your emergency fund target, the extra is moved to brokerage.', steps}; };
 
 XP.cs = (c, k) => {
   const p=A.p, q=c==='D'?downside(p):upside(p), r=(c==='D'?A.D:A.U)[k], base=A.R[k];
@@ -2794,7 +2805,7 @@ const TOT = {saved:['Total saved (burned)',x=>x.saved,'Brokerage deposits plus n
   contrib:['Total retirement contributions',x=>x.contrib,'Every 401(k)/IRA contribution, including match.'],
   rent:['Rent paid',x=>x.rent,'Every month of rent.']};
 XP.tot = (w, k) => { const p=A.p, r=RUN(k), [t,fn,wh]=TOT[w], fut=r.months.reduce((a,x)=>a+fn(x),0), tod=r.months.reduce((a,x,i)=>a+fn(x)/dfl(p,i),0);
-  return {eb:nm(k), t:`${t}, ${r.H} years`, v:M$(tod), sub:DOL(), what:wh,
+  return {eb:nm(k), t:`${t}, ${mon(0)}–${ENDY()}`, v:M$(tod), sub:DOL(), what:wh,
     steps:[{l:'Sum of every month',f:'Future dollars, as paid',v:fut,cls:'sub'}].concat(REAL?[{l:"Each month converted to today's dollars as of when it's paid",f:`÷ (1 + ${pctS(p.infl)}) ^ (years from now)`,v:tod,cls:'total',x:'in:infl'}]:[]),
     table:(()=>{ const rows=r.years.map(yr=>{ const sl=r.months.slice(yr.m0,yr.m0+yr.n); return [String(yr.year), sl.reduce((a,x)=>a+fn(x),0), sl.reduce((a,x,j)=>a+fn(x)/dfl(p,yr.m0+j),0)]; });
       return {cols:['Year','Future $',REAL?"Today's $":'Future $'],rows,foot:['Total',fut,tod],note:''}; })()}; };
@@ -2803,7 +2814,7 @@ XP.cl = k => {
   const p=A.p, r=RUN(k); if(r.buyM===null) return null;
   const liq0=r.preClose, left=liq0-r.cashAtClose;
   return {eb:nm(k), t:'Cash to close + renovation', v:M$(r.cashAtClose), sub:mon(r.buyM),
-    what:'Everything you pay at or right after closing. It comes out of cash first, then brokerage.',
+    what:'Everything you pay at or right after closing. It comes out of brokerage first; the emergency fund is only used if brokerage runs out.',
     steps:[{l:'Purchase price',f:r.buyM>0?`${F$(p.price)} grown ${pctS(p.app)}/yr until ${mon(r.buyM)}`:'Your input',v:r.price0,x:'in:price'},
       {sep:'At closing'},
       {l:`Down payment`,f:`Price × ${pctS(p.down)}`,v:r.down0,x:'in:down'},
@@ -2841,9 +2852,9 @@ XP.rwnow = w => { const p=pv(w), rentNow=p.rentNow>0?p.rentNow:p.rent, sp=rentNo
   return {eb:'Today · '+whoName(w||'b'), t:'Runway with no income', v:(liq/sp).toFixed(1)+' months', what:'How long cash + brokerage would cover your current spending if both paychecks stopped. Ignores investment swings and taxes on selling.',
     steps:[{l:'Cash + brokerage',v:liq,x:'in:cash'},{op:'÷',l:'Monthly spending',f:'Current rent + cars, insurance, other',v:sp,fmt:'$'},{op:'=',l:'Months covered',v:(liq/sp).toFixed(1)+' mo',cls:'total'}]}; };
 
-XP.bx = () => { const p=A.p, f=A.R.buy.first, v=f.housing-f.taxBen-p.rent;
-  return {eb:nm('buy'), t:'Extra per month to own', v:F$(v)+'/mo', sub:'January 2027', what:'How much more owning costs each month than renting a house with a yard, after the mortgage tax savings.',
-    steps:[{l:'All-in housing',v:f.housing,x:'hs:buy'},{op:'−',l:'Mortgage tax savings',v:f.taxBen,x:'tax:buy'},{op:'=',l:'Net cost of owning',v:f.housing-f.taxBen,cls:'sub'},{op:'−',l:'Rent for a house with a yard',v:p.rent,x:'in:rent'},{op:'=',l:'Extra per month to own',v,cls:'total'}]}; };
+XP.bx = () => { const p=A.p, f=A.R.buy.first, rentT=A.R.rent.first.rent||p.rent, v=f.housing-f.taxBen-rentT;
+  return {eb:nm('buy'), t:'Extra per month to own', v:F$(v)+'/mo', sub:mon(A.R.buy.firstM), what:'How much more owning costs each month than renting a house with a yard, after the mortgage tax savings.',
+    steps:[{l:'All-in housing',v:f.housing,x:'hs:buy'},{op:'−',l:'Mortgage tax savings',v:f.taxBen,x:'tax:buy'},{op:'=',l:'Net cost of owning',v:f.housing-f.taxBen,cls:'sub'},{op:'−',l:`Rent for a house with a yard, ${mon(A.R.rent.firstM)}`,v:rentT,x:'in:rent'},{op:'=',l:'Extra per month to own',v,cls:'total'}]}; };
 
 XP.be = () => {
   const p=A.p, be=A.beApp, E=ENDY();
@@ -2860,14 +2871,18 @@ XP.oc = id => {
   const p=A.p, oc=ownCost(A), row=oc.rows.find(x=>x[2]===id), b=A.R.buy, e=b.end, E=ENDY();
   const F={interest:[x=>x.interest,'Mortgage interest','Interest portion of every mortgage payment. Principal isn’t a cost; it becomes equity.'],pt:[x=>x.pt,'Property tax','Home value × '+pctS(p.ptax)+' each year, paid monthly.'],hins:[x=>x.hins,'Homeowners insurance','Your yearly premium, rising with inflation.'],maint:[x=>x.maint,'Maintenance','Home value × '+pctS(p.maint)+' each year, set aside monthly.'],hoa:[x=>x.hoa+x.util,'HOA + extra utilities','Monthly HOA plus extra utilities vs. renting.'],pmi:[x=>x.pmi,'PMI','Mortgage insurance until the loan is under 78% of the price.'],tax:[x=>-x.taxBen,'Mortgage tax savings','Tax you save by itemizing. It reduces the cost of owning.']};
   if(F[id]){ const [fn,t,wh]=F[id], fut=b.months.reduce((a,x)=>a+fn(x),0), tod=b.months.reduce((a,x,i)=>a+fn(x)/dfl(p,i),0);
-    return {eb:nm('buy')+' · Cost of owning', t, v:(tod<0?'−':'')+M$(Math.abs(tod)), sub:`${b.H} years, ${DOL()}`, what:wh,
+    return {eb:nm('buy')+' · Cost of owning', t, v:(tod<0?'−':'')+M$(Math.abs(tod)), sub:`${mon(b.buyM)}–${E}, ${DOL()}`, what:wh,
       steps:[{l:'Sum of every month',f:'Future dollars',v:fut,cls:'sub',x:id==='tax'?'tax:buy':id==='interest'?'pi:buy':null}].concat(REAL?[{l:"Each month in today's dollars as of when it's paid",v:tod,cls:'total',x:'in:infl'}]:[]),
       table:(()=>{ const rows=b.years.map(yr=>{ const sl=b.months.slice(yr.m0,yr.m0+yr.n); return [String(yr.year), sl.reduce((a,x)=>a+fn(x),0), sl.reduce((a,x,j)=>a+fn(x)/dfl(p,yr.m0+j),0)]; }); return {cols:['Year','Future $',REAL?"Today's $":'Future $'],rows,foot:['Total',fut,tod],note:''}; })()}; }
-  if(id==='close') return {eb:nm('buy')+' · Cost of owning', t:'Closing costs to buy', v:M$(b.closeCost), what:'Lender, title and other fees at purchase.', steps:[{l:'Purchase price',v:b.price0,x:'in:price'},{op:'×',l:'Closing costs',v:p.closeBuy,fmt:'%',x:'in:closeBuy'},{op:'=',l:'Closing costs',v:b.closeCost,cls:'total'}]};
+  if(id==='close') return {eb:nm('buy')+' · Cost of owning', t:'Closing costs to buy', v:M$(row[1]), sub:DOL(), what:'Lender, title and other fees at purchase.', steps:[{l:`Purchase price, ${mon(b.buyM)}`,v:b.price0,x:'in:price'},{op:'×',l:'Closing costs',v:p.closeBuy,fmt:'%',x:'in:closeBuy'},{op:'=',l:'Closing costs',f:'Future dollars',v:b.closeCost,cls:'sub'},...toToday(p,b.closeCost,b.buyM)]};
   if(id==='sell') return {eb:nm('buy')+' · Cost of owning', t:'Cost to sell at the end', v:M$(row[1]), sub:DOL(), what:`Agent and closing costs if you sold at the end of ${E}. It's counted so the house is valued at what you'd actually net.`, steps:[{l:`Home value, end of ${E}`,v:e.home,x:`eq:buy:${e.m}`},{op:'×',l:'Cost to sell',v:p.sell,fmt:'%',x:'in:sell'},{op:'=',l:'Selling costs',f:'Future dollars',v:e.home*p.sell/100,cls:'sub'},...toToday(p,e.home*p.sell/100,e.m)]};
   if(id==='opp'){ const yh=(b.M-b.buyM)/12, g=Math.pow(1+p.ret/100,yh)-1, v=b.cashAtClose*g; return {eb:nm('buy')+' · Cost of owning', t:'Return given up on cash at closing', v:M$(row[1]), sub:DOL(), what:`The down payment, closing costs and renovation would otherwise have stayed invested at ${pctS(p.ret)}/yr for ${nf(yh,2)} years. This is the growth you give up.`, steps:[{l:'Cash at closing',v:b.cashAtClose,x:'cl:buy'},{op:'×',l:'Growth you’d have had',f:`(1 + ${pctS(p.ret)}) ^ ${nf(yh,2)} − 1`,v:g,fmt:'x',x:'in:ret'},{op:'=',l:'Return given up',f:'Future dollars',v,cls:'sub'},...toToday(p,v,e.m)]}; }
   if(id==='apprec'){ const v=e.home-b.price0; return {eb:nm('buy')+' · Cost of owning', t:'Home value growth', v:'−'+M$(Math.abs(row[1])), sub:DOL(), what:'What the house gains in value. It offsets the cost of owning.', steps:[{l:`Home value, end of ${E}`,f:`${F$(b.price0)} × (1 + ${pctS(p.app)}) ^ ${nf((b.M-b.buyM)/12,2)}`,v:e.home,x:'in:app'},{op:'−',l:'Purchase price',v:b.price0,x:'in:price'},{op:'=',l:'Gain',f:'Future dollars',v,cls:'sub'},...toToday(p,v,e.m)]}; }
-  if(id==='own') return {eb:nm('buy'), t:'Net cost of owning', v:M$(oc.own), sub:`${b.H} years, ${DOL()}`, what:'Every cost of owning that isn’t savings, minus tax savings and appreciation. Compare it to the rent you’d pay instead.', steps:[...oc.rows.map(([l,v,k2],i)=>({op:v<0?'−':(i?'+':''),l,v:Math.abs(v),x:'oc:'+k2})),{op:'=',l:'Net cost of owning',v:oc.own,cls:'total'},{sep:'Compared with'},{l:'Rent you’d pay instead',v:oc.rent,x:'tot:rent:rent'}]};
+  if(id==='rent'){ const r=A.R.rent, rows=r.years.filter(yr=>yr.m0+yr.n>b.buyM).map(yr=>{ let fu=0,to=0; for(let i=Math.max(yr.m0,b.buyM);i<yr.m0+yr.n;i++){ fu+=r.months[i].rent; to+=r.months[i].rent/dfl(p,i); } return [String(yr.year),fu,to]; });
+    return {eb:nm('buy')+' · Cost of owning', t:'Rent you’d pay instead', v:M$(oc.rent), sub:`${mon(b.buyM)}–${E}, ${DOL()}`, what:'Rent on the rent path over the same months you’d own, from closing to the end. Months before closing are rent on both paths, so they’re left out of both sides.',
+      steps:[{l:'Rent, closing to the end',f:'Each month in '+DOL()+' as of when it’s paid',v:oc.rent,cls:'total'}], table:{cols:['Year','Future $',REAL?"Today's $":'Future $'],rows,foot:['Total',rows.reduce((a,x)=>a+x[1],0),rows.reduce((a,x)=>a+x[2],0)],note:''}}; }
+  if(id==='reno') return {eb:nm('buy')+' · Cost of owning', t:'Renovation', v:M$(B(p,b.renoCost,b.buyM)), what:'Paid at closing. The model doesn’t add it to the home’s value, so it counts as a cost.', steps:[{l:'Renovation',v:b.renoCost,x:'in:reno'},...toToday(p,b.renoCost,b.buyM)]};
+  if(id==='own') return {eb:nm('buy'), t:'Net cost of owning', v:M$(oc.own), sub:`${mon(b.buyM)}–${E}, ${DOL()}`, what:'Every cost of owning that isn’t savings, minus tax savings and appreciation. Compare it to the rent you’d pay instead.', steps:[...oc.rows.map(([l,v,k2],i)=>({op:v<0?'−':(i?'+':''),l,v:Math.abs(v),x:'oc:'+k2})),{op:'=',l:'Net cost of owning',v:oc.own,cls:'total'},{sep:'Compared with'},{l:'Rent you’d pay instead',v:oc.rent,x:'tot:rent:rent'}]};
   return null;
 };
 
@@ -2892,7 +2907,7 @@ XP.yr = (tid, ci, yi) => {
     return {eb:nm(kname)+' · Year by year', t:`${col[0]}, end of ${yr.year}`, v:T$(B(p,v,m)), sub:DOL(), what:COLDEF[col[0]]||'Balance at the end of December.',
       steps:[{l:`${col[0]}, Dec ${yr.year}`,f:'Future dollars',v,cls:'sub',x:dr||null},...toToday(p,v,m)]}; }
   const sl=r.months.slice(yr.m0,yr.m0+yr.n), vals=sl.map(x=>col[1](mY(x))), sum=vals.reduce((a,x)=>a+x,0), mid=(yr.m0+yr.n/2)/12, d=REAL?Math.pow(1+p.infl/100,mid):1;
-  const steps=[{l:`${col[0]}, ${yr.year}`,f:'Sum of 12 months, future dollars',v:sum,cls:'sub'}];
+  const steps=[{l:`${col[0]}, ${yr.year}`,f:`Sum of ${yr.n} months, future dollars`,v:sum,cls:'sub'}];
   if(REAL) steps.push({op:'÷',l:"Inflation back to today's dollars",f:`(1 + ${pctS(p.infl)}) ^ ${nf(mid,2)} (mid-year)`,v:d,fmt:'x',x:'in:infl'},{op:'=',l:"In today's dollars",v:sum/d,cls:'total'});
   return {eb:nm(kname)+' · Year by year', t:`${col[0]}, ${yr.year}`, v:T$(sum/d), sub:DOL(), what, steps,
     table:{cols:['Month',col[0]],rows:sl.map((x,i)=>[mon(yr.m0+i),vals[i]]),foot:['Total',sum],note:'Future dollars'}};
