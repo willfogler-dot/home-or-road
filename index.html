@@ -2820,7 +2820,7 @@ XP.endC = k => {
 
 XP.liq = k => { const p=A.p, r=RUN(k), e=r.end;
   return {eb:nm(k), t:'Cash + brokerage at the end', v:M$(B(p,e.liq,e.m)), sub:DOL(), what:'Money you could get to without touching retirement or selling a house.',
-    steps:[{l:'Cash',v:e.cash,x:'endC:'+k},{op:'+',l:'Brokerage',v:e.brok,x:'endB:'+k},{op:'=',l:'Cash + brokerage',f:'Future dollars',v:e.liq,cls:'sub'},...toToday(p,e.liq,e.m)]}; };
+    steps:(d=>[{l:'Cash',v:e.cash/d,x:'endC:'+k},{op:'+',l:'Brokerage',v:e.brok/d,x:'endB:'+k},{op:'=',l:'Cash + brokerage',f:DOL(),v:e.liq/d,cls:'total'}])(dfl(p,e.m)), notes:REAL?[`In actual dollars at the time: ${F$(e.liq)}.`]:[]}; };
 
 XP.low = k => { const p=A.p, r=RUN(k), ml=r.minLiq;
   return {eb:nm(k), t:'Lowest cash + brokerage', v:M$(B(p,ml.liq,ml.m)), sub:monEnd(ml.m),
@@ -2830,11 +2830,11 @@ XP.low = k => { const p=A.p, r=RUN(k), ml=r.minLiq;
 
 XP.nw = (k, m) => {
   const p=A.p, r=RUN(k); m = m!==undefined ? Math.min(r.M,+m) : r.M; const s=r.all[m], atEnd=m===r.M, yr=m<=0?'today':((T0M+m)%12===0?String(yrOfM(m-1)):monEnd(m));
-  const steps=[{l:'Cash',v:s.cash,x:atEnd?'endC:'+k:null},{op:'+',l:'Brokerage',v:s.brok,x:atEnd?'endB:'+k:null},{op:'+',l:'Retirement',v:s.retire,x:atEnd?'endR:'+k:null}];
-  if(s.home>0) steps.push({op:'+',l:'Home equity, after selling costs',v:s.equity,x:`eq:${k}:${m}`});
-  if(s.van>0) steps.push({op:'+',l:'Van, less any loan',f:'Loses value evenly until you sell it',v:s.van-s.vanBal});
-  steps.push({op:'=',l:`Net worth, end of ${yr}`,f:'Future dollars',v:s.nw,cls:'sub'},...toToday(p,s.nw,m));
-  return {eb:nm(k), t:`Net worth, end of ${yr}`, v:M$(B(p,s.nw,m)), sub:DOL(),
+  const d=dfl(p,m), steps=[{l:'Cash',v:s.cash/d,x:atEnd?'endC:'+k:null},{op:'+',l:'Brokerage',v:s.brok/d,x:atEnd?'endB:'+k:null},{op:'+',l:'Retirement',v:s.retire/d,x:atEnd?'endR:'+k:null}];
+  if(s.home>0) steps.push({op:'+',l:'Home equity, after selling costs',v:s.equity/d,x:`eq:${k}:${m}`});
+  if(s.van>0) steps.push({op:'+',l:'Van, less any loan',f:'Loses value evenly until you sell it',v:(s.van-s.vanBal)/d});
+  steps.push({op:'=',l:`Net worth, end of ${yr}`,f:DOL(),v:s.nw/d,cls:'total'});
+  return {eb:nm(k), t:`Net worth, end of ${yr}`, v:M$(B(p,s.nw,m)), sub:DOL(), notes:d>1?[`Every line above is in today's dollars. In actual dollars at the time, it's ${F$(s.nw)}; dividing by ${nf(d,4)} for inflation since today gives ${F$(s.nw/d)}.`]:[],
     what:"Everything you own minus what you owe. The home counts at what you'd net if you sold it (value minus selling costs, minus the loan). Retirement counts at full value, before tax.",
     steps, table:ytable(r,[['Cash',x=>x.cash,'end'],['Brokerage',x=>x.brok,'end'],['Retirement',x=>x.retire,'end'],['Equity',x=>x.equity+(x.van-x.vanBal),'end'],['Net worth',x=>x.nw,'end']],'Future dollars, end of each year')};
 };
@@ -2846,7 +2846,7 @@ XP.eq = (k, m) => {
       {op:'×',l:'After selling costs',f:`1 − ${pctS(p.sell)}`,v:1-p.sell/100,fmt:'x',x:'in:sell'},
       {op:'=',l:'What a sale nets',v:s.home*(1-p.sell/100),cls:'sub'},
       {op:'−',l:'Mortgage balance',v:s.mort,x:'pi:'+k},
-      {op:'=',l:'Home equity',f:'Future dollars',v:s.equity,cls:'sub'},...toToday(p,s.equity,m)],
+      {op:'=',l:'Home equity',f:'Actual dollars at the time, before the inflation adjustment below',v:s.equity,cls:'sub'},...toToday(p,s.equity,m)],
     table:ytable(r,[['Home value',x=>x.home,'end'],['Loan',x=>x.mort,'end'],['Equity',x=>x.equity,'end']],'Future dollars, end of each year')};
 };
 
@@ -2900,7 +2900,7 @@ XP.vgap = () => {
   const p=A.p, vc=vanCost(A), r=A.R.rent, v=A.R.van, g=r.end.nw-v.end.nw;
   return {eb:nm('van'), t:`Total gap ${VS(p)}`, v:M$(vc.total), sub:`end of ${ENDY()}, today's dollars`,
     what:"How much less net worth the van path ends with, then split into where it comes from. Each part adds up money as it happens and grows it at your investment return to the end, because that's what it would have become invested.",
-    steps:[{l:`${nm('rent')} net worth`,f:'Future dollars',v:r.end.nw,x:'nw:rent'},{op:'−',l:`${nm('van')} net worth`,v:v.end.nw,x:'nw:van'},{op:'=',l:'Gap',f:'Future dollars',v:g,cls:'sub'},...toToday(p,g,r.M,true),
+    steps:[{l:`${nm('rent')} net worth`,f:'Actual dollars at the time, before the inflation adjustment below',v:r.end.nw,x:'nw:rent'},{op:'−',l:`${nm('van')} net worth`,v:v.end.nw,x:'nw:van'},{op:'=',l:'Gap',f:'Actual dollars at the time, before the inflation adjustment below',v:g,cls:'sub'},...toToday(p,g,r.M,true),
       {sep:'Split into parts'},...vc.parts.map(([l,x,kk],i)=>({op:i?(x<0?'−':'+'):'',l,v:i?Math.abs(x):x,x:'vg:'+kk})),{op:'=',l:'Total gap',v:vc.total,cls:'total'}]};
 };
 
@@ -2941,7 +2941,7 @@ XP.vg = kk => {
     steps.push({l:`Van + setup, paid ${mon(v.vS)}`,f:'Cash portion, after any financing',v:v.vanCashIn,x:'up:van'});
     if(loT>0) steps.push({op:'+',l:'Van loan payments',v:loT,x:'vl'});
     if(sale) steps.push({op:'−',l:`Van sold, ${mon(sale.m)}`,f:`${pctS(p.vanResale)} of the price, less any loan left`,v:-sale.amt,x:'in:vanResale'});
-    steps.push({op:'=',l:'Net cash cost of the van',f:'Future dollars',v:amt,cls:'sub'},{l:"In today's dollars",f:'Each amount converted from when it happens (table below)',v:tod,cls:'total',x:'in:infl'});
+    steps.push({op:'=',l:'Net cash cost of the van',f:'Actual dollars at the time, before the inflation adjustment below',v:amt,cls:'sub'},{l:"In today's dollars",f:'Each amount converted from when it happens (table below)',v:tod,cls:'total',x:'in:infl'});
   } else {
     if(ex) steps.push({l:ex[0],f:'Where the monthly amount comes from',v:ex[1],x:ex[2]},{sep:'Adding it up'});
     steps.push({l:'Total of the monthly amounts',f:'Future dollars, as they happen',v:amt,cls:'sub'},{l:"In today's dollars",f:'Each month converted from when it happens (table below)',v:tod,cls:'total',x:'in:infl'});
@@ -3056,10 +3056,10 @@ XP.oc = id => {
   const F={interest:[x=>x.interest,'Mortgage interest','Interest portion of every mortgage payment. Principal isn’t a cost; it becomes equity.'],pt:[x=>x.pt,'Property tax','Home value × '+pctS(p.ptax)+' each year, paid monthly.'],hins:[x=>x.hins,'Homeowners insurance','Your yearly premium, rising with inflation.'],maint:[x=>x.maint,'Maintenance','Home value × '+pctS(p.maint)+' each year, set aside monthly.'],hoa:[x=>x.hoa+x.util,'HOA + extra utilities','Monthly HOA plus extra utilities vs. renting.'],pmi:[x=>x.pmi,'PMI','Mortgage insurance until the loan is under 78% of the price.'],tax:[x=>-x.taxBen,'Mortgage tax savings','Tax you save by itemizing. It reduces the cost of owning.']};
   if(F[id]){ const [fn,t,wh]=F[id], fut=b.months.reduce((a,x)=>a+fn(x),0), tod=b.months.reduce((a,x,i)=>a+fn(x)/dfl(p,i),0);
     return {eb:nm('buy')+' · Cost of owning', t, v:(tod<0?'−':'')+M$(Math.abs(tod)), sub:`${mon(b.buyM)}–${E}, ${DOL()}`, what:wh,
-      steps:[{l:'Sum of every month',f:'Future dollars',v:fut,cls:'sub',x:id==='tax'?'tax:buy':id==='interest'?'pi:buy':null}].concat(REAL?[{l:"Each month in today's dollars as of when it's paid",v:tod,cls:'total',x:'in:infl'}]:[]),
+      steps:[{l:'Sum of every month',f:'Actual dollars at the time, before the inflation adjustment below',v:fut,cls:'sub',x:id==='tax'?'tax:buy':id==='interest'?'pi:buy':null}].concat(REAL?[{l:"Each month in today's dollars as of when it's paid",v:tod,cls:'total',x:'in:infl'}]:[]),
       table:(()=>{ const rows=b.years.map(yr=>{ const sl=b.months.slice(yr.m0,yr.m0+yr.n); return [String(yr.year), sl.reduce((a,x)=>a+fn(x),0), sl.reduce((a,x,j)=>a+fn(x)/dfl(p,yr.m0+j),0)]; }); return {cols:['Year','Future $',REAL?"Today's $":'Future $'],rows,foot:['Total',fut,tod],note:''}; })()}; }
-  if(id==='close') return {eb:nm('buy')+' · Cost of owning', t:'Closing costs to buy', v:M$(row[1]), sub:DOL(), what:'Lender, title and other fees at purchase.', steps:[{l:`Purchase price, ${mon(b.buyM)}`,v:b.price0,x:'in:price'},{op:'×',l:'Closing costs',v:p.closeBuy,fmt:'%',x:'in:closeBuy'},{op:'=',l:'Closing costs',f:'Future dollars',v:b.closeCost,cls:'sub'},...toToday(p,b.closeCost,b.buyM)]};
-  if(id==='sell') return {eb:nm('buy')+' · Cost of owning', t:'Cost to sell at the end', v:M$(row[1]), sub:DOL(), what:`Agent and closing costs if you sold at the end of ${E}. It's counted so the house is valued at what you'd actually net.`, steps:[{l:`Home value, end of ${E}`,v:e.home,x:`eq:buy:${e.m}`},{op:'×',l:'Cost to sell',v:p.sell,fmt:'%',x:'in:sell'},{op:'=',l:'Selling costs',f:'Future dollars',v:e.home*p.sell/100,cls:'sub'},...toToday(p,e.home*p.sell/100,e.m)]};
+  if(id==='close') return {eb:nm('buy')+' · Cost of owning', t:'Closing costs to buy', v:M$(row[1]), sub:DOL(), what:'Lender, title and other fees at purchase.', steps:[{l:`Purchase price, ${mon(b.buyM)}`,v:b.price0,x:'in:price'},{op:'×',l:'Closing costs',v:p.closeBuy,fmt:'%',x:'in:closeBuy'},{op:'=',l:'Closing costs',f:'Actual dollars at the time, before the inflation adjustment below',v:b.closeCost,cls:'sub'},...toToday(p,b.closeCost,b.buyM)]};
+  if(id==='sell') return {eb:nm('buy')+' · Cost of owning', t:'Cost to sell at the end', v:M$(row[1]), sub:DOL(), what:`Agent and closing costs if you sold at the end of ${E}. It's counted so the house is valued at what you'd actually net.`, steps:[{l:`Home value, end of ${E}`,v:e.home,x:`eq:buy:${e.m}`},{op:'×',l:'Cost to sell',v:p.sell,fmt:'%',x:'in:sell'},{op:'=',l:'Selling costs',f:'Actual dollars at the time, before the inflation adjustment below',v:e.home*p.sell/100,cls:'sub'},...toToday(p,e.home*p.sell/100,e.m)]};
   if(id==='opp'){ const yh=(b.M-b.buyM)/12, g=Math.pow(1+p.ret/100,yh)-1, v=b.cashAtClose*g; return {eb:nm('buy')+' · Cost of owning', t:'Return given up on cash at closing', v:M$(row[1]), sub:DOL(), what:`The down payment, closing costs and renovation would otherwise have stayed invested at ${pctS(p.ret)}/yr for ${nf(yh,2)} years. This is the growth you give up.`, steps:[{l:'Cash at closing',v:b.cashAtClose,x:'cl:buy'},{op:'×',l:'Growth you’d have had',f:`(1 + ${pctS(p.ret)}) ^ ${nf(yh,2)} − 1`,v:g,fmt:'x',x:'in:ret'},{op:'=',l:'Return given up',f:'Future dollars',v,cls:'sub'},...toToday(p,v,e.m)]}; }
   if(id==='apprec'){ const v=e.home-b.price0; return {eb:nm('buy')+' · Cost of owning', t:'Home value growth', v:'−'+M$(Math.abs(row[1])), sub:DOL(), what:'What the house gains in value. It offsets the cost of owning.', steps:[{l:`Home value, end of ${E}`,f:`${F$(b.price0)} × (1 + ${pctS(p.app)}) ^ ${nf((b.M-b.buyM)/12,2)}`,v:e.home,x:'in:app'},{op:'−',l:'Purchase price',v:b.price0,x:'in:price'},{op:'=',l:'Gain',f:'Future dollars',v,cls:'sub'},...toToday(p,v,e.m)]}; }
   if(id==='rent'){ const r=A.R.rent, rows=r.years.filter(yr=>yr.m0+yr.n>b.buyM).map(yr=>{ let fu=0,to=0; for(let i=Math.max(yr.m0,b.buyM);i<yr.m0+yr.n;i++){ fu+=r.months[i].rent; to+=r.months[i].rent/dfl(p,i); } return [String(yr.year),fu,to]; });
@@ -3082,7 +3082,7 @@ XP.gs = (g, i, j) => {
 
 function eqTape(q, head){
   const b=run('buy',q), e=b.end, p=A.p, paid=b.loan0-e.mort, gain=e.home-b.price0, sellC=e.home*q.sell/100;
-  return {b, steps:[{l:'Down payment',f:`${F$(b.price0)} × ${pctS(q.down)}`,v:b.down0},{op:'+',l:'Principal paid down',f:`${F$(b.loan0)} loan at ${pctS(q.rate)}, now ${F$(e.mort)}`,v:paid},{op:gain<0?'−':'+',l:`Home value growth at ${pctS(q.app)}/yr`,f:`${F$(b.price0)} → ${F$(e.home)}`,v:Math.abs(gain)},{op:'−',l:`Selling costs (${pctS(q.sell)})`,v:sellC},{op:'=',l:'Home equity',f:'Future dollars',v:e.equity,cls:'sub'},...toToday(p,e.equity,e.m)]};
+  return {b, steps:[{l:'Down payment',f:`${F$(b.price0)} × ${pctS(q.down)}`,v:b.down0},{op:'+',l:'Principal paid down',f:`${F$(b.loan0)} loan at ${pctS(q.rate)}, now ${F$(e.mort)}`,v:paid},{op:gain<0?'−':'+',l:`Home value growth at ${pctS(q.app)}/yr`,f:`${F$(b.price0)} → ${F$(e.home)}`,v:Math.abs(gain)},{op:'−',l:`Selling costs (${pctS(q.sell)})`,v:sellC},{op:'=',l:'Home equity',f:'Actual dollars at the time, before the inflation adjustment below',v:e.equity,cls:'sub'},...toToday(p,e.equity,e.m)]};
 }
 XP.eqg = (i,j) => { const p=A.p, a=A.appRows[+i], rt=A.rateCols[+j], t=eqTape(variant(p,{app:a,rate:rt}));
   return {eb:nm('buy')+' · Home equity', t:`${pctS(a)} growth, ${pctS(rt)} rate`, v:M$(B(p,t.b.end.equity,t.b.end.m)), sub:`end of ${ENDY()}, ${DOL()}`,
