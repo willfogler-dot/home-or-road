@@ -1,0 +1,1955 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Home or Road</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+/* Layout: fixed sidebar (brand, path nav with live net worth, dollar basis) + content column.
+   Each tab = thesis hero -> 4 KPIs -> 1-2 primary visuals -> collapsible "details" drawers. Dark-first. */
+:root{
+  --bg:#0A0B0D; --side:#0D0F12; --card:#121418; --card-2:#171A1F; --field:#1B1F25;
+  --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.12); --grid:rgba(255,255,255,.05);
+  --ink:#F3F4F6; --ink-2:#A8AEB8; --muted:#6F7681;
+  --rent:#16A87A; --buy:#4F8FF7; --van:#E86A2E;
+  --c-ret:#3D63E0; --c-brok:#6E97FF; --c-cash:#B3C8FF; --c-eq:#9A7BF5; --c-van:#E8A13C;
+  --pos:#3DD68C; --neg:#FF6B6B; --warn:#F5B94A;
+  --pos-bg:rgba(61,214,140,.12); --neg-bg:rgba(255,107,107,.12); --warn-bg:rgba(245,185,74,.12);
+  --div-pos:79,143,247; --div-neg:255,107,107;
+  --band:rgba(232,106,46,.07); --glow:rgba(79,143,247,.10);
+  --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.25);
+  --f:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --fd:"Inter Tight","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#F4F5F7; --side:#FBFBFC; --card:#FFFFFF; --card-2:#F7F8FA; --field:#F1F3F5;
+  --line:rgba(16,24,40,.08); --line-2:rgba(16,24,40,.14); --grid:rgba(16,24,40,.06);
+  --ink:#0C0E12; --ink-2:#4A515E; --muted:#848A95;
+  --rent:#10A37F; --buy:#2A6FDB; --van:#E8662A;
+  --c-ret:#2F4FD8; --c-brok:#5C86F0; --c-cash:#A9C0F7; --c-eq:#7C5CE0; --c-van:#D98A1F;
+  --pos:#0F8A4A; --neg:#D23B3B; --warn:#A86A00;
+  --pos-bg:rgba(15,138,74,.09); --neg-bg:rgba(210,59,59,.08); --warn-bg:rgba(245,170,40,.14);
+  --div-pos:42,111,219; --div-neg:210,59,59; --band:rgba(232,102,42,.06); --glow:rgba(42,111,219,.06);
+  --shadow:0 1px 2px rgba(16,24,40,.04), 0 4px 14px rgba(16,24,40,.04); color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#F4F5F7; --side:#FBFBFC; --card:#FFFFFF; --card-2:#F7F8FA; --field:#F1F3F5;
+  --line:rgba(16,24,40,.08); --line-2:rgba(16,24,40,.14); --grid:rgba(16,24,40,.06);
+  --ink:#0C0E12; --ink-2:#4A515E; --muted:#848A95;
+  --rent:#10A37F; --buy:#2A6FDB; --van:#E8662A;
+  --c-ret:#2F4FD8; --c-brok:#5C86F0; --c-cash:#A9C0F7; --c-eq:#7C5CE0; --c-van:#D98A1F;
+  --pos:#0F8A4A; --neg:#D23B3B; --warn:#A86A00;
+  --pos-bg:rgba(15,138,74,.09); --neg-bg:rgba(210,59,59,.08); --warn-bg:rgba(245,170,40,.14);
+  --div-pos:42,111,219; --div-neg:210,59,59; --band:rgba(232,102,42,.06); --glow:rgba(42,111,219,.06);
+  --shadow:0 1px 2px rgba(16,24,40,.04), 0 4px 14px rgba(16,24,40,.04); color-scheme:light}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+html,body{margin:0}
+body{color:var(--ink);font-family:var(--f);font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased;font-feature-settings:"cv11","ss01"}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--buy);outline-offset:2px}
+.num,.v,.big,td{font-variant-numeric:tabular-nums}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100%}
+.side{position:sticky;top:0;height:100vh;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 14px 16px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 22px}
+.logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(145deg,var(--buy),#7C5CE0 55%,var(--van));display:grid;place-items:center;flex:none;box-shadow:0 4px 14px rgba(79,143,247,.3)}
+.logo svg{width:17px;height:17px}
+.brand b{display:block;font-family:var(--fd);font-size:15.5px;font-weight:650;letter-spacing:-.02em;line-height:1.1}
+.brand span{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav .grp{font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);padding:14px 10px 6px}
+.nav button{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;border:0;background:transparent;color:var(--ink-2);padding:8px 10px;border-radius:9px;text-align:left;cursor:pointer;font-size:13.5px;font-weight:500}
+.nav button:hover{background:var(--card-2);color:var(--ink)}
+.nav button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.nav .ic{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;background:var(--field)}
+.nav .ic i{width:8px;height:8px;border-radius:2px;display:block}
+.nav .nv{font-family:var(--fd);font-size:12px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.nav button[aria-selected="true"] .nv{color:var(--ink-2)}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:10px;padding:0 6px}
+.side-foot .meta{font-size:11.5px;color:var(--muted);line-height:1.45}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--field);border-radius:9px;padding:3px}
+.seg button{border:0;background:transparent;padding:5px 10px;border-radius:7px;font-size:12px;font-weight:500;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.2),0 0 0 1px var(--line)}
+
+.main{min-width:0;padding-inline:36px;padding-block:32px 72px;position:relative}
+.main::before{content:"";position:absolute;inset:0 0 auto 0;height:340px;background:radial-gradient(900px 300px at 20% -10%,var(--glow),transparent 70%);pointer-events:none}
+.wrap{max-width:1160px;margin:0 auto;position:relative}
+.tab{display:flex;flex-direction:column;gap:18px}
+
+/* ---------- hero / thesis ---------- */
+.hero{display:flex;flex-direction:column;gap:10px;padding:4px 0 6px}
+.eyebrow{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.eyebrow i{width:8px;height:8px;border-radius:2px}
+.thesis{font-family:var(--fd);font-size:clamp(22px,2.5vw,30px);line-height:1.22;font-weight:600;letter-spacing:-.025em;margin:0;max-width:34em;text-wrap:balance}
+.thesis em{font-style:normal}
+.hl-rent{color:var(--rent)} .hl-buy{color:var(--buy)} .hl-van{color:var(--van)} .hl-pos{color:var(--pos)} .hl-neg{color:var(--neg)}
+.lede{margin:0;color:var(--ink-2);font-size:14px;max-width:72ch}
+.hero-ctl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ctl-pill{display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line-2);border-radius:10px;padding:4px 6px 4px 12px;font-size:12.5px;color:var(--ink-2)}
+.ctl-pill select{border:0;background:var(--field);border-radius:7px;padding:5px 8px;font-weight:600;color:var(--ink);cursor:pointer}
+
+.alert{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.5;border:1px solid}
+.alert.bad{background:var(--neg-bg);border-color:color-mix(in srgb,var(--neg) 30%,transparent);color:var(--ink)}
+.alert.warn{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 30%,transparent);color:var(--ink)}
+.alert .ai{flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;color:var(--bg)}
+.alert.bad .ai{background:var(--neg)} .alert.warn .ai{background:var(--warn)}
+.alert b{font-weight:600}
+.alert button{border:0;background:none;color:var(--ink);font-weight:600;text-decoration:underline;cursor:pointer;padding:0;margin-left:4px}
+
+/* ---------- cards ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;min-width:0;box-shadow:var(--shadow)}
+.card-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:16px 18px 0;flex-wrap:wrap}
+.card-h h2{font-family:var(--fd);font-size:15px;font-weight:600;margin:0;letter-spacing:-.01em}
+.card-h .sub{font-size:12px;color:var(--muted)}
+.card-b{padding:14px 18px 18px}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.g21{grid-template-columns:minmax(0,1.75fr) minmax(0,1fr)}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px 15px;min-width:0;box-shadow:var(--shadow)}
+.kpi .l{font-size:12px;color:var(--muted);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .v{font-family:var(--fd);font-size:25px;font-weight:650;letter-spacing:-.03em;margin-top:4px;white-space:nowrap;line-height:1.15}
+.kpi .s{font-size:12px;color:var(--ink-2);margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:6px;white-space:nowrap}
+.chip.up{color:var(--pos);background:var(--pos-bg)} .chip.dn{color:var(--neg);background:var(--neg-bg)} .chip.wn{color:var(--warn);background:var(--warn-bg)} .chip.nt{color:var(--ink-2);background:var(--field)}
+.v.dn{color:var(--neg)} .v.wn{color:var(--warn)} .v.up{color:var(--pos)}
+
+/* scenario cards on summary */
+.sc{padding:18px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden;cursor:pointer;transition:border-color .15s}
+.sc:hover{border-color:var(--line-2)}
+.sc::after{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:var(--acc)}
+.sc-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sc-h .nm{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px}
+.sq{width:9px;height:9px;border-radius:3px;flex:none;display:inline-block}
+.sc .cap{font-size:12px;color:var(--muted)}
+.sc .big{font-family:var(--fd);font-size:34px;font-weight:650;letter-spacing:-.035em;line-height:1.05;margin-top:2px}
+.sc .spark{height:46px;margin:0 -2px}
+.sc dl{display:grid;grid-template-columns:1fr auto;gap:7px 12px;margin:0;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px}
+.sc dt{color:var(--ink-2)} .sc dd{margin:0;text-align:right;font-weight:600}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.status.good{color:var(--pos);background:var(--pos-bg)} .status.warn{color:var(--warn);background:var(--warn-bg)} .status.bad{color:var(--neg);background:var(--neg-bg)}
+
+/* charts */
+.chart{position:relative;height:320px}
+.chart.sm{height:250px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--ink-2);padding:10px 18px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* range (football field) */
+.ff{display:flex;flex-direction:column;gap:20px;padding-top:4px}
+.ff-l{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:8px}
+.ff-l b{font-weight:600;display:flex;align-items:center;gap:7px}
+.ff-l .num{font-family:var(--fd);font-weight:600}
+.ff-track{position:relative;height:10px;background:var(--field);border-radius:99px}
+.ff-bar{position:absolute;top:0;height:10px;border-radius:99px}
+.ff-mark{position:absolute;top:-4px;width:4px;height:18px;border-radius:2px;background:var(--ink);box-shadow:0 0 0 2px var(--card)}
+.ff-ends{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:6px}
+.ff-note{font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+
+/* tables */
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:8px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--grid)}
+th:first-child,td:first-child{text-align:left;padding-left:18px}
+th:last-child,td:last-child{padding-right:18px}
+thead th{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;border-bottom:1px solid var(--line);background:var(--card)}
+tbody tr:hover td{background:var(--card-2)}
+tr.sec td{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:transparent;padding-top:16px}
+tr.band td{background:var(--band)}
+td.neg{color:var(--neg)} td.pos{color:var(--pos)}
+td.strong{font-weight:600;color:var(--ink)}
+.sens td{text-align:center;font-weight:600;padding:10px 8px;border:2px solid var(--card)}
+.sens td:first-child,.sens th:first-child{text-align:left}
+.sens th{text-align:center}
+.sens td.base{box-shadow:inset 0 0 0 2px var(--ink);border-radius:6px}
+.axis-note{font-size:12px;color:var(--muted);padding:0 18px 8px}
+
+/* horizontal bars */
+.hb{display:flex;flex-direction:column;gap:10px}
+.hb-row{display:grid;grid-template-columns:minmax(120px,200px) minmax(0,1fr) 84px;gap:12px;align-items:center;font-size:12.5px}
+.hb-row .lab{color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb-row .val{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.hb-track{position:relative;height:10px;background:var(--field);border-radius:99px;overflow:hidden}
+.hb-fill{position:absolute;top:0;left:0;height:10px;border-radius:99px}
+.hb-row.total{border-top:1px solid var(--line);padding-top:10px}
+.hb-row.total .lab{color:var(--ink);font-weight:600}
+.hb-row.total .hb-track{height:12px} .hb-row.total .hb-fill{height:12px}
+
+/* drawers */
+.details-h{display:flex;align-items:baseline;justify-content:space-between;margin-top:10px}
+.details-h h3{font-family:var(--fd);font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0}
+.drawers{display:flex;flex-direction:column;gap:10px}
+.drawer{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.drawer summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:14px 18px}
+.drawer summary::-webkit-details-marker{display:none}
+.drawer summary b{font-family:var(--fd);font-weight:600;font-size:14px;display:block}
+.drawer summary span{display:block;font-size:12.5px;color:var(--ink-2);margin-top:2px}
+.drawer .chev{width:26px;height:26px;border-radius:8px;background:var(--field);display:grid;place-items:center;transition:transform .2s}
+.drawer .chev::before{content:"";width:7px;height:7px;border-right:1.6px solid var(--ink-2);border-bottom:1.6px solid var(--ink-2);transform:translateY(-2px) rotate(45deg)}
+.drawer[open] .chev{transform:rotate(180deg)}
+.drawer[open] summary{border-bottom:1px solid var(--line)}
+.drawer-b{padding:16px 18px 18px}
+.drawer-b.flush{padding:6px 0 10px}
+
+/* analysis */
+.an-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 18px;border-bottom:1px solid var(--line)}
+.an-top h2{font-family:var(--fd);font-size:15px;font-weight:600;margin:0}
+.an-top .src{font-size:12px;color:var(--muted);margin-top:2px}
+.btn{border:1px solid var(--line-2);background:var(--card-2);border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.pri:hover{opacity:.9}
+.btn:disabled{opacity:.55;cursor:default}
+.an-bl{padding:18px;font-family:var(--fd);font-size:17px;line-height:1.5;font-weight:500;letter-spacing:-.012em;border-bottom:1px solid var(--line)}
+.an-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.an-col{padding:18px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:12px;min-width:0}
+.an-col:first-child{border-left:0}
+.an-col h3{margin:0;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.an-col .verdict{font-family:var(--fd);font-weight:600;font-size:14px;letter-spacing:-.01em}
+.an-sec .k{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.an-sec p{margin:0;color:var(--ink-2);font-size:12.5px;line-height:1.6}
+.an-sec ul{margin:0;padding-left:16px;color:var(--ink-2);font-size:12.5px;line-height:1.55}
+.an-next{padding:16px 18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-2)}
+.an-next b{color:var(--ink);font-weight:600}
+.an-next ol{margin:6px 0 0;padding-left:18px;line-height:1.6}
+.an-err{padding:10px 18px;font-size:12.5px;color:var(--neg)}
+
+.inv-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+.inv-grid > div{min-width:0}
+.inv-grid .bridge{border-left:1px solid var(--line)}
+.bridge table td,.bridge table th{padding:7px 12px}
+.bridge tr.eq td{font-weight:650;color:var(--ink);border-top:1px solid var(--line-2)}
+.bridge tr.sec td{padding-top:14px}
+.seg.sm{display:inline-grid}
+.seg.sm button{padding:4px 10px}
+.comp{display:flex;flex-direction:column;gap:14px;padding:16px 18px 18px;border-top:1px solid var(--line)}
+.comp-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.comp-h h3{margin:0;font-family:var(--fd);font-size:14px;font-weight:600}
+.comp-row{display:grid;grid-template-columns:130px minmax(0,1fr) 80px;gap:12px;align-items:center;font-size:12.5px}
+.comp-row .who{font-weight:600;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.comp-row .tot{text-align:right;font-weight:650;font-family:var(--fd)}
+.cbar{display:flex;height:26px;border-radius:8px;overflow:hidden;gap:2px;background:var(--field)}
+.cbar div{min-width:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden}
+.sync{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);line-height:1.3}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none}
+.sync.on i{background:var(--pos);box-shadow:0 0 0 3px var(--pos-bg)}
+.sync.ro i{background:var(--warn)}
+.add-home{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;padding:16px 18px 18px}
+.add-home > div{display:flex;flex-direction:column;gap:8px;min-width:0}
+.add-home label{font-size:12.5px;font-weight:500}
+.add-home .hint{font-size:11.5px;color:var(--muted)}
+.urlbox{display:flex;align-items:center;background:var(--field);border:1px solid var(--line);border-radius:9px;padding:0 10px;height:38px}
+.urlbox:focus-within{border-color:var(--buy);box-shadow:0 0 0 3px color-mix(in srgb,var(--buy) 18%,transparent)}
+.urlbox input{border:0;background:transparent;outline:none;width:100%;font-size:13.5px}
+textarea{width:100%;min-height:92px;resize:vertical;background:var(--field);border:1px solid var(--line);border-radius:9px;padding:9px 10px;font:inherit;font-size:12.5px;color:var(--ink);outline:none}
+textarea:focus{border-color:var(--buy);box-shadow:0 0 0 3px color-mix(in srgb,var(--buy) 18%,transparent)}
+.drop{flex:1;border:1.5px dashed var(--line-2);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;text-align:center;color:var(--ink-2);font-size:12.5px;min-height:150px;cursor:pointer;background:var(--card-2);transition:border-color .15s,background .15s}
+.drop b{color:var(--ink);font-weight:600;font-size:13.5px}
+.drop.over{border-color:var(--buy);background:color-mix(in srgb,var(--buy) 10%,var(--card-2))}
+.drop .file{display:inline-flex;align-items:center;gap:8px;background:var(--field);padding:4px 6px 4px 10px;border-radius:8px;color:var(--ink)}
+.drop .file button{border:0;background:var(--card);border-radius:6px;cursor:pointer;padding:2px 7px;color:var(--ink-2)}
+.add-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 18px 18px}
+.add-foot .msg{font-size:12.5px;color:var(--muted)}
+.add-foot .msg.err{color:var(--neg)}
+.urlprev{font-size:12px;color:var(--ink-2);min-height:18px}
+.homes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.home{padding:18px;display:flex;flex-direction:column;gap:14px}
+.home.active{border-color:var(--buy);box-shadow:0 0 0 1px var(--buy),var(--shadow)}
+.home-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.home-h a,.home-h .addr{color:var(--ink);text-decoration:none;font-family:var(--fd);font-weight:600;font-size:15.5px;letter-spacing:-.01em}
+.home-h a:hover{text-decoration:underline}
+.home .meta{font-size:12px;color:var(--muted);margin-top:3px}
+.home .price{font-family:var(--fd);font-size:30px;font-weight:650;letter-spacing:-.03em;line-height:1}
+.hm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.hm{background:var(--card-2);border:1px solid var(--line);border-radius:11px;padding:10px 12px;min-width:0}
+.hm .l{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hm .v{font-family:var(--fd);font-weight:650;font-size:18px;margin-top:2px;letter-spacing:-.02em;white-space:nowrap}
+.hm .s{font-size:11.5px;color:var(--ink-2);margin-top:1px}
+.home .notes{font-size:12.5px;color:var(--ink-2);background:var(--field);border-radius:9px;padding:8px 10px}
+.home-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);padding-top:12px}
+.home-actions .grow{flex:1}
+.hspark{display:flex;flex-direction:column;gap:4px}
+.hspark .lg{display:flex;gap:12px;font-size:11.5px;color:var(--muted)}
+.empty{padding:28px 18px;text-align:center;color:var(--ink-2);font-size:13px}
+/* map */
+.map-card{position:relative;height:520px;overflow:hidden;padding:0}
+#h-map{width:100%;height:100%;display:block;cursor:grab;touch-action:none;user-select:none}
+#h-map:active{cursor:grabbing}
+#h-map.placing{cursor:crosshair}
+.m-bg{fill:var(--card)}
+.m-hills{fill:color-mix(in srgb,var(--rent) 7%,var(--card-2));stroke:none}
+.m-hlabel{fill:var(--muted);font-weight:600;letter-spacing:.3em;text-anchor:middle;opacity:.7}
+.m-county{fill:transparent;stroke:var(--line-2);stroke-width:1;vector-effect:non-scaling-stroke;stroke-dasharray:4 3}
+.m-town{fill:var(--ink-2);font-weight:500;text-anchor:middle;opacity:.75;pointer-events:none;paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round}
+.m-clabel{fill:var(--muted);font-weight:600;letter-spacing:.14em;text-anchor:middle;opacity:.55;pointer-events:none}
+.m-road{fill:none;stroke:color-mix(in srgb,var(--ink-2) 45%,transparent);stroke-width:1.6;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.m-shield{fill:var(--card-2);stroke:var(--line-2);stroke-width:1;vector-effect:non-scaling-stroke}
+.m-shieldt{fill:var(--ink-2);font-weight:700;text-anchor:middle;pointer-events:none}
+.m-trail path{fill:var(--rent);stroke:var(--card);stroke-width:1;vector-effect:non-scaling-stroke;opacity:.9}
+.m-place circle,.m-place rect{fill:var(--ink);stroke:var(--card);stroke-width:2;vector-effect:non-scaling-stroke}
+.m-place.work rect{fill:var(--buy)}
+.m-place text{fill:var(--ink);font-weight:600;paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round}
+.m-pin{cursor:pointer}
+.m-pin .m-bubble{fill:var(--card-2);stroke:var(--line-2);stroke-width:1.2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 5px rgba(0,0,0,.35))}
+.m-pin .m-tip{fill:var(--card-2)}
+.m-pin text{fill:var(--ink);font-weight:650;text-anchor:middle;font-family:var(--fd)}
+.m-pin.pos .m-dot{fill:var(--pos)} .m-pin.neg .m-dot{fill:var(--neg)} .m-pin.warn .m-dot{fill:var(--warn)}
+.m-pin.active .m-bubble,.m-pin.active .m-tip{fill:var(--buy);stroke:var(--buy)} .m-pin.active text{fill:#fff}
+.m-pin.hover .m-bubble,.m-pin:focus-visible .m-bubble{stroke:var(--ink);stroke-width:2}
+.m-pin:focus{outline:none}
+.m-approx{fill:var(--warn);stroke:var(--card);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.map-tools{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px}
+.map-tools button{width:34px;height:32px;border-radius:9px;border:1px solid var(--line-2);background:var(--card-2);color:var(--ink);font-weight:600;cursor:pointer;font-size:14px}
+.map-tools button#m-fit{font-size:11px}
+.map-legend{position:absolute;left:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--ink-2);background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(6px);padding:7px 11px;border-radius:10px;border:1px solid var(--line);max-width:calc(100% - 80px)}
+.map-legend span{display:inline-flex;align-items:center;gap:6px}
+.lg-pin{width:8px;height:8px;border-radius:50%} .lg-pin.pos{background:var(--pos)} .lg-pin.neg{background:var(--neg)} .lg-pin.warn{background:var(--warn)}
+.lg-tri{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid var(--rent)}
+.lg-sq{width:9px;height:9px;border-radius:2px;background:var(--buy)}
+.map-banner{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--bg);padding:8px 8px 8px 14px;border-radius:12px;font-size:13px;font-weight:500;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.mapnote{font-size:12px;color:var(--muted);margin-top:-8px}
+/* list */
+.hlist{display:flex;flex-direction:column;padding:6px 0 8px}
+.hrow{display:grid;grid-template-columns:minmax(0,2.4fr) 90px 100px 150px 150px 80px 90px;gap:12px;align-items:center;padding:11px 18px;border:0;border-top:1px solid var(--grid);background:transparent;text-align:left;cursor:pointer;font-size:13px;color:var(--ink-2)}
+.hrow.head{cursor:default;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-top:0;padding-block:8px}
+.hrow:not(.head):hover,.hrow.hl{background:var(--card-2)}
+.hrow .hname{display:flex;flex-direction:column;gap:2px;min-width:0}
+.hrow .hname b{color:var(--ink);font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .hname small{color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .hname .chip{align-self:flex-start;margin-top:2px}
+.hrow .strong{color:var(--ink);font-weight:600}
+/* modal */
+.modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:24px 16px}
+.modal-back{position:absolute;inset:0;background:rgba(5,7,10,.6);backdrop-filter:blur(3px)}
+.modal-card{position:relative;width:min(760px,100%);max-height:calc(100vh - 48px);overflow:auto;background:var(--card);border:1px solid var(--line-2);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.45);padding:22px 24px 20px}
+.modal-x{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--card-2);color:var(--ink-2);font-size:18px;cursor:pointer;z-index:2}
+.mp{display:flex;flex-direction:column;gap:14px}
+.mp-h{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding-right:36px}
+.mp-h h2{margin:6px 0 0;font-family:var(--fd);font-size:21px;font-weight:650;letter-spacing:-.02em}
+.mp .meta{font-size:12.5px;color:var(--muted);margin-top:3px}
+.mp .price{font-family:var(--fd);font-size:30px;font-weight:650;letter-spacing:-.03em;line-height:1}
+.mp-status{display:flex;align-items:center;gap:12px}
+.lnk{color:var(--buy);font-size:12.5px;font-weight:600;text-decoration:none}
+.lnk:hover{text-decoration:underline}
+.hm-grid.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.mp-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.mp-k{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.mp-list{display:flex;flex-direction:column;font-size:12.5px}
+.mp-list > div{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--grid);color:var(--ink-2)}
+.mp-list b{color:var(--ink);font-weight:600;text-align:right}
+.mp-list .tot{border-top:1px solid var(--line-2);border-bottom:0;font-weight:600} .mp-list .tot span{color:var(--ink)}
+b.up{color:var(--pos)}
+#h-leaflet{width:100%;height:100%;background:var(--card-2)}
+#h-leaflet.placing,#h-leaflet.placing .leaflet-interactive{cursor:crosshair}
+.leaflet-container{font-family:var(--f)}
+.leaflet-control-attribution{font-size:10px}
+.lwrap{background:none;border:0}
+.leaflet-bar{border:1px solid var(--line-2)!important;border-radius:10px!important;overflow:hidden;box-shadow:none!important}
+.leaflet-bar a{background:var(--card-2)!important;color:var(--ink)!important;border-bottom-color:var(--line)!important}
+.leaflet-control-attribution{background:color-mix(in srgb,var(--card) 80%,transparent)!important;color:var(--muted)!important}
+.leaflet-control-attribution a{color:var(--ink-2)!important}
+.leaflet-tooltip{background:var(--card-2);color:var(--ink);border:1px solid var(--line-2);box-shadow:none}
+.leaflet-tooltip-top:before{border-top-color:var(--line-2)}
+.lpin{position:absolute;transform:translate(-50%,calc(-100% - 7px));display:inline-flex;align-items:center;gap:6px;white-space:nowrap;background:var(--card-2);color:var(--ink);border:1px solid var(--line-2);border-radius:999px;padding:4px 10px 4px 8px;font-family:var(--fd);font-weight:650;font-size:12.5px;box-shadow:0 3px 10px rgba(0,0,0,.35);cursor:pointer}
+.lpin::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-bottom:0;border-top-color:var(--card-2)}
+.lpin i{width:8px;height:8px;border-radius:50%;display:block}
+.lpin.pos i{background:var(--pos)} .lpin.neg i{background:var(--neg)} .lpin.warn i{background:var(--warn)}
+.lpin.active{background:var(--buy);border-color:var(--buy);color:#fff} .lpin.active::after{border-top-color:var(--buy)}
+.lpin:hover{border-color:var(--ink);z-index:1000}
+.lpin .approx{position:absolute;top:-3px;right:-3px;width:8px;height:8px;border-radius:50%;background:var(--warn);border:1.5px solid var(--card)}
+.ltri{position:absolute;transform:translate(-50%,-60%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid var(--rent);filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))}
+.lplace{position:absolute;transform:translate(-7px,-7px);display:flex;align-items:center;gap:6px;white-space:nowrap;font-weight:600;font-size:12px;color:var(--ink);text-shadow:0 0 3px var(--card),0 0 3px var(--card),0 0 3px var(--card)}
+.lplace i{width:12px;height:12px;border-radius:50%;background:var(--ink);border:2px solid var(--card)}
+.lplace.work i{border-radius:3px;background:var(--buy)}
+.map-tools{z-index:500;top:auto;bottom:40px}
+.map-legend,.map-banner{z-index:500}
+.auth{display:flex;flex-direction:column;gap:6px}
+.authline{font-size:11.5px;color:var(--muted);line-height:1.35;word-break:break-all}
+.btn.sm{padding:5px 10px;font-size:12px}
+.insights{display:flex;flex-direction:column;gap:12px;font-size:13px;color:var(--ink-2);line-height:1.6}
+.insights p{margin:0}
+.insights b{color:var(--ink);font-weight:600}
+
+/* assumptions */
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow)}
+.box.editing{border-color:var(--buy);box-shadow:0 0 0 3px color-mix(in srgb,var(--buy) 18%,transparent)}
+.box-h{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.box-h h3{margin:0;font-family:var(--fd);font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.box-h .right{display:flex;align-items:center;gap:8px;margin-left:auto}
+.box-h .tot{font-size:12.5px;color:var(--muted)} .box-h .tot b{color:var(--ink);font-weight:600}
+.vlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+.vlist.one{grid-template-columns:1fr}
+.vrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid var(--grid);min-width:0}
+.vrow .l{color:var(--ink-2);font-size:12.5px;min-width:0}
+.vrow .l small{display:block;font-size:11.5px;color:var(--muted)}
+.vrow .v{font-weight:600;font-size:13px;white-space:nowrap}
+.vrow .v small{font-weight:400;color:var(--muted);font-size:11.5px;margin-left:1px}
+.egrid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) 88px;gap:8px 10px;align-items:center;margin-top:8px}
+.egrid .hd{font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.egrid .lb{font-size:12.5px;font-weight:500;min-width:0}
+.egrid .lb small{display:block;font-size:11.5px;color:var(--muted);font-weight:400;line-height:1.3}
+.egrid .tt{text-align:right;font-weight:600}
+.egrid .span2{grid-column:2 / span 2}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;margin-top:8px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-size:12.5px;font-weight:500}
+.field small{font-size:11.5px;color:var(--muted);line-height:1.3}
+.inp{display:flex;align-items:center;background:var(--field);border:1px solid var(--line);border-radius:9px;padding:0 10px;height:36px;transition:border-color .15s,box-shadow .15s}
+.inp:focus-within{border-color:var(--buy);box-shadow:0 0 0 3px color-mix(in srgb,var(--buy) 18%,transparent)}
+.inp input{border:0;background:transparent;outline:none;width:100%;min-width:0;font-size:13.5px;font-weight:500;padding:0;font-variant-numeric:tabular-nums}
+.inp .pre,.inp .suf{color:var(--muted);font-size:12.5px;white-space:nowrap}
+.inp .pre{margin-right:3px} .inp .suf{margin-left:6px}
+.inp select{border:0;background:transparent;width:100%;outline:none;font-size:13.5px;font-weight:500}
+.ehint{font-size:12px;color:var(--muted);margin:12px 0 0}
+.method{font-size:12.5px;color:var(--ink-2);columns:2 320px;column-gap:28px;line-height:1.6}
+.method p{margin:0 0 10px;break-inside:avoid}
+.method b{color:var(--ink);font-weight:600}
+
+@media (max-width:1100px){
+  .g21,.an-cols,.inv-grid{grid-template-columns:1fr}
+  .inv-grid .bridge{border-left:0;border-top:1px solid var(--line)}
+  .an-col{border-left:0;border-top:1px solid var(--line)} .an-col:first-child{border-top:0}
+}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{min-width:0}
+  .eyebrow{flex-wrap:wrap;letter-spacing:.04em}
+  .side{position:sticky;top:0;z-index:20;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding:12px 16px 0;padding-top:calc(12px + env(safe-area-inset-top,0px));gap:8px;border-right:0;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--side) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+  .brand{padding:0;flex:1}
+  .brand span{display:none}
+  .side-foot{margin:0;padding:0;order:2}
+  .side-foot .meta,.authline{display:none}
+  .nav{order:3;flex-direction:row;width:100%;overflow-x:auto;gap:4px;padding:8px 0 10px;scrollbar-width:none}
+  .nav .grp{display:none}
+  .nav button{grid-template-columns:auto auto;white-space:nowrap}
+  .nav .nv{display:none}
+  .main{padding-inline:16px;padding-block:20px 56px}
+  .g2,.g3,.homes,.add-home,.mp-cols{grid-template-columns:1fr}
+  .hm-grid.four{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .map-card{height:420px}
+  .hrow{grid-template-columns:1fr auto;row-gap:4px}
+  .hrow.head{display:none}
+  .hrow > span:not(.hname){font-size:12px}
+  .hrow > span[data-l]::before{content:attr(data-l) " ";color:var(--muted);font-size:11px}
+  .hrow .hname{grid-column:1/-1}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:620px){
+  .vlist,.fields{grid-template-columns:1fr}
+  .egrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 72px}
+  .egrid .lb{grid-column:1/-1;margin-top:4px}
+  .egrid .hd.first{display:none}
+  .egrid .span2{grid-column:1 / span 2}
+  .hb-row{grid-template-columns:110px minmax(0,1fr) 74px}
+  .comp-row{grid-template-columns:1fr 70px}
+  .comp-row .cbar{grid-column:1/-1;grid-row:2}
+  .chart{height:260px}
+  .kpi .v{font-size:21px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 15V8.5M8 8.5L3.5 3M8 8.5L12.5 3" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/><circle cx="3.5" cy="3" r="1.6" fill="#fff"/><circle cx="12.5" cy="3" r="1.6" fill="#fff"/></svg></div>
+      <div><b>Home or Road</b><span>Will &amp; Megan · household plan</span></div>
+    </div>
+    <nav class="nav" role="tablist" id="tabs">
+      <button role="tab" data-tab="summary"><span class="ic"><i style="background:var(--ink-2)"></i></span>Summary<span class="nv"></span></button>
+      <div class="grp">Paths · net worth</div>
+      <button role="tab" data-tab="rent"><span class="ic"><i style="background:var(--rent)"></i></span><span data-nm="rent">Rent</span><span class="nv" data-nv="rent"></span></button>
+      <button role="tab" data-tab="buy"><span class="ic"><i style="background:var(--buy)"></i></span><span data-nm="buy">Buy</span><span class="nv" data-nv="buy"></span></button>
+      <button role="tab" data-tab="van"><span class="ic"><i style="background:var(--van)"></i></span><span data-nm="van">Van Life</span><span class="nv" data-nv="van"></span></button>
+      <div class="grp">Shopping</div>
+      <button role="tab" data-tab="homes"><span class="ic"><i style="background:var(--c-eq)"></i></span>Homes<span class="nv" id="nv-homes"></span></button>
+      <div class="grp">Inputs</div>
+      <button role="tab" data-tab="inputs"><span class="ic"><i style="background:var(--muted);border-radius:50%"></i></span>Assumptions<span class="nv"></span></button>
+    </nav>
+    <div class="side-foot">
+      <div class="seg" role="group" aria-label="Dollar basis"><button id="b-real">Today's $</button><button id="b-nom">Future $</button></div>
+      <div class="sync" id="sync"><i></i><span>Saved in this browser</span></div>
+      <div class="auth" id="auth"></div>
+      <div class="meta" id="meta"></div>
+    </div>
+  </aside>
+
+  <div class="main"><div class="wrap">
+
+  <!-- SUMMARY -->
+  <section class="tab" id="tab-summary">
+    <header class="hero"><div class="eyebrow">Summary · <span id="s-eyebrow"></span></div><h1 class="thesis" id="s-thesis"></h1><p class="lede" id="s-lede"></p></header>
+    <div id="s-alerts"></div>
+    <div class="grid g3" id="s-cards"></div>
+    <div class="grid g21">
+      <div class="card"><div class="card-h"><h2>Net worth over time</h2><span class="sub" id="s-nw-sub"></span></div>
+        <div class="legend" id="s-lg"></div>
+        <div class="card-b"><div class="chart"><canvas id="c-s-nw"></canvas></div></div></div>
+      <div class="card"><div class="card-h"><h2>Range of outcomes</h2><span class="sub" id="s-ff-sub"></span></div>
+        <div class="card-b"><div class="ff" id="s-ff"></div></div></div>
+    </div>
+    <div class="card" id="s-inv">
+      <div class="card-h"><div><h2>Your investment accounts</h2><div class="sub" style="margin-top:2px" id="s-inv-sub"></div></div>
+        <div class="seg sm" role="group" aria-label="Account" id="s-inv-tabs"><button data-acc="brok" aria-pressed="true">Brokerage</button><button data-acc="retire" aria-pressed="false">Retirement</button><button data-acc="both" aria-pressed="false">Both</button></div></div>
+      <div class="inv-grid">
+        <div><div class="legend" id="s-inv-lg"></div><div class="card-b"><div class="chart sm"><canvas id="c-s-inv"></canvas></div></div></div>
+        <div class="bridge"><div class="tw"><table id="s-bridge"></table></div></div>
+      </div>
+      <div class="comp"><div class="comp-h"><h3>Where your net worth sits</h3><span class="sub" id="s-comp-sub" style="font-size:12px;color:var(--muted)"></span></div><div id="s-comp" style="display:flex;flex-direction:column;gap:10px"></div><div class="legend" id="s-comp-lg" style="padding:0"></div></div>
+    </div>
+    <div class="card" id="s-analysis"></div>
+    <div class="details-h"><h3>Details</h3></div>
+    <div class="drawers">
+      <details class="drawer" data-d="s-cmp"><summary><div><b>Full comparison</b><span>Net worth, liquidity, cash flow and totals for every path, side by side</span></div><i class="chev"></i></summary>
+        <div class="drawer-b flush"><div class="tw"><table id="s-cmp"></table></div></div></details>
+    </div>
+  </section>
+
+  <!-- RENT -->
+  <section class="tab" id="tab-rent" hidden>
+    <header class="hero"><div class="eyebrow"><i style="background:var(--rent)"></i><span id="r-eyebrow">Rent · the baseline</span></div><h1 class="thesis" id="r-thesis"></h1><p class="lede" id="r-lede"></p>
+      <div class="hero-ctl"><label class="ctl-pill" for="r-then">After renting<select id="r-then"></select></label></div></header>
+    <div id="r-alerts"></div>
+    <div class="kpis" id="r-kpis"></div>
+    <div class="grid g21">
+      <div class="card"><div class="card-h"><h2>What you own</h2><span class="sub">Year-end balances</span></div>
+        <div class="legend" id="r-lg"></div>
+        <div class="card-b"><div class="chart"><canvas id="c-r-comp"></canvas></div></div></div>
+      <div class="card"><div class="card-h"><h2>Why it works</h2></div><div class="card-b insights" id="r-ins"></div></div>
+    </div>
+    <div class="details-h"><h3>Details</h3></div>
+    <div class="drawers">
+      <details class="drawer" data-d="r-table"><summary><div><b>Annual projection</b><span id="r-tsum"></span></div><i class="chev"></i></summary>
+        <div class="drawer-b flush"><div class="tw"><table id="r-table"></table></div></div></details>
+    </div>
+  </section>
+
+  <!-- BUY -->
+  <section class="tab" id="tab-buy" hidden>
+    <header class="hero"><div class="eyebrow"><i style="background:var(--buy)"></i><span id="b-eyebrow"></span></div><h1 class="thesis" id="b-thesis"></h1><p class="lede" id="b-lede"></p></header>
+    <div id="b-alerts"></div>
+    <div class="kpis" id="b-kpis"></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-h"><h2>Monthly cost of owning</h2><span class="sub">Year 1 vs. rent</span></div><div class="card-b"><div class="hb" id="b-month"></div></div></div>
+      <div class="card"><div class="card-h"><h2>Home value and loan</h2><span class="sub">The gap is your equity</span></div>
+        <div class="legend" id="b-lg1"></div>
+        <div class="card-b"><div class="chart sm"><canvas id="c-b-eq"></canvas></div></div></div>
+    </div>
+    <div class="details-h"><h3>Details</h3></div>
+    <div class="drawers">
+      <details class="drawer" data-d="b-sens"><summary><div><b>Sensitivity</b><span id="b-sens-sum"></span></div><i class="chev"></i></summary>
+        <div class="drawer-b flush"><div class="axis-note">Net worth vs. the rent path at the end of the projection. Rows: home value growth per year. Columns: mortgage rate. Outlined cell = your inputs.</div><div class="tw"><table class="sens" id="b-sens"></table></div></div></details>
+      <details class="drawer" data-d="b-exit"><summary><div><b>If you have to sell early</b><span id="b-exit-sum"></span></div><i class="chev"></i></summary>
+        <div class="drawer-b flush"><div class="tw"><table id="b-exit"></table></div></div></details>
+      <details class="drawer" data-d="b-uc"><summary><div><b>Total cost of owning vs. renting</b><span id="b-uc-sum"></span></div><i class="chev"></i></summary>
+        <div class="drawer-b"><div class="hb" id="b-uc"></div></div></details>
+      <details class="drawer" data-d="b-comp"><summary><div><b>What you own, year by year</b><span>Cash, brokerage, retirement and home equity</span></div><i class="chev"></i></summary>
+        <div class="legend" id="b-lg2"></div><div class="drawer-b"><div class="chart sm"><canvas id="c-b-comp"></canvas></div></div></details>
+      <details class="drawer" data-d="b-table"><summary><div><b>Annual projection</b><span>Year-by-year cash flow and balances</span></div><i class="chev"></i></summary>
+        <div class="drawer-b flush"><div class="tw"><table id="b-table"></table></div></div></details>
+    </div>
+  </section>
+
+  <!-- VAN -->
+  <section class="tab" id="tab-van" hidden>
+    <header class="hero"><div class="eyebrow"><i style="background:var(--van)"></i><span id="v-eyebrow"></span></div><h1 class="thesis" id="v-thesis"></h1><p class="lede" id="v-lede"></p></header>
+    <div id="v-alerts"></div>
+    <div class="kpis" id="v-kpis"></div>
+    <div class="grid g2">
+      <div class="card"><div class="card-h"><h2>Where the gap comes from</h2><span class="sub" id="v-wf-sub"></span></div><div class="card-b"><div class="hb" id="v-wf"></div></div></div>
+      <div class="card"><div class="card-h"><h2>Cash runway</h2><span class="sub">Cash + brokerage by month</span></div>
+        <div class="legend" id="v-lg1"></div>
+        <div class="card-b"><div class="chart sm"><canvas id="c-v-run"></canvas></div></div></div>
+    </div>
+    <div class="details-h"><h3>Details</h3></div>
+    <div class="drawers">
+      <details class="drawer" data-d="v-bud"><summary><div><b>Monthly road budget</b><span id="v-bud-sum"></span></div><i class="chev"></i></summary>
+        <div class="drawer-b"><div class="hb" id="v-bud"></div></div></details>
+      <details class="drawer" data-d="v-sens"><summary><div><b>Sensitivity</b><span id="v-sens-sum"></span></div><i class="chev"></i></summary>
+        <div class="drawer-b flush"><div class="axis-note">Net worth vs. the rent path at the end of the projection. Rows: time on the road. Columns: pay when you go back, as a share of what you'd have made. Outlined cell = your inputs.</div><div class="tw"><table class="sens" id="v-sens"></table></div></div></details>
+      <details class="drawer" data-d="v-ins"><summary><div><b>Read-through</b><span>What drives the result and where the leverage is</span></div><i class="chev"></i></summary>
+        <div class="drawer-b insights" id="v-ins"></div></details>
+      <details class="drawer" data-d="v-comp"><summary><div><b>What you own, year by year</b><span>Cash, brokerage, retirement and the van</span></div><i class="chev"></i></summary>
+        <div class="legend" id="v-lg2"></div><div class="drawer-b"><div class="chart sm"><canvas id="c-v-comp"></canvas></div></div></details>
+      <details class="drawer" data-d="v-table"><summary><div><b>Annual projection</b><span>Shaded rows are years on the road</span></div><i class="chev"></i></summary>
+        <div class="drawer-b flush"><div class="tw"><table id="v-table"></table></div></div></details>
+    </div>
+  </section>
+
+  <!-- HOMES -->
+  <section class="tab" id="tab-homes" hidden>
+    <header class="hero"><div class="eyebrow"><i style="background:var(--c-eq)"></i>Homes · listings you're considering</div><h1 class="thesis" id="h-thesis"></h1><p class="lede" id="h-lede"></p>
+      <div class="hero-ctl"><button class="btn pri" id="h-addbtn">+ Add a home</button></div></header>
+    <div class="card map-card" id="h-mapcard">
+      <div id="h-leaflet" role="region" aria-label="Map of saved homes"></div>
+      <div class="map-tools"><button id="m-fit" aria-label="Fit all homes">Fit</button></div>
+      <div class="map-banner" id="h-place" hidden><span></span><button class="btn" id="h-place-cancel">Cancel</button></div>
+      <div class="map-legend"><span><i class="lg-pin pos"></i>Beats rent path</span><span><i class="lg-pin neg"></i>Behind rent path</span><span><i class="lg-pin warn"></i>Cash problem</span><span><i class="lg-tri"></i>Trailhead</span><span><i class="lg-sq"></i>Work</span></div>
+    </div>
+    <div class="mapnote" id="h-mapnote"></div>
+    <div class="card"><div class="card-h"><h2>Saved homes</h2><span class="sub">Click a home for its full profile</span></div><div class="hlist" id="h-list"></div></div>
+    <div class="details-h" id="h-dh"><h3>Details</h3></div>
+    <div class="drawers" id="h-dr">
+      <details class="drawer" data-d="h-cmp"><summary><div><b>Compare homes</b><span>Every saved home side by side against the rent path</span></div><i class="chev"></i></summary>
+        <div class="drawer-b flush"><div class="tw"><table id="h-cmp"></table></div></div></details>
+    </div>
+  </section>
+
+  <!-- ASSUMPTIONS -->
+  <section class="tab" id="tab-inputs" hidden>
+    <header class="hero"><div class="eyebrow">Assumptions</div><h1 class="thesis">Your numbers</h1>
+      <p class="lede">Click Edit on any section. Household sections have a column for Will and one for Megan and add them up. Every tab recalculates as you type.</p>
+      <div class="hero-ctl"><button class="btn" id="reset">Reset to examples</button></div></header>
+    <div id="in-sync"></div>
+    <div class="grid g2">
+      <div class="grid" style="align-content:start">
+        <div class="box" id="box-savings"></div>
+        <div class="box" id="box-income"></div>
+        <div class="box" id="box-exp"></div>
+      </div>
+      <div class="grid" style="align-content:start">
+        <div class="box" id="box-buy"></div>
+        <div class="box" id="box-road"></div>
+        <div class="box" id="box-mkt"></div>
+      </div>
+    </div>
+    <div class="drawers">
+      <details class="drawer" data-d="method"><summary><div><b>How the model works</b><span>Cash flow rules, taxes, stress cases</span></div><i class="chev"></i></summary>
+      <div class="drawer-b method">
+        <p><b>Monthly model, January 2027 onward.</b> Pay and retirement contributions go up once a year with your raise. Car, insurance, other spending, homeowner costs and road costs go up with inflation. Rent goes up at its own rate.</p>
+        <p><b>Where money goes.</b> Brokerage direct deposits go straight into brokerage. Bank deposits pay the bills, and what's left stays in cash. A shortfall is pulled from brokerage. Down payments and the van come out of cash first, then brokerage. If both run dry, the model treats the shortfall as borrowing at the investment return and flags the month it happened.</p>
+        <p><b>Returns.</b> Cash earns the cash yield. Brokerage and retirement earn the investment return. Taxes on brokerage gains aren't modeled, and retirement is never withdrawn.</p>
+        <p><b>Buying.</b> Home equity is counted after the cost to sell. Mortgage interest adds a tax benefit only above the $32,200 standard deduction, with SALT capped at $40K, a 24% bracket and 4.4% Colorado tax. PMI of 0.5% a year applies below 20% down, until the loan reaches 78% of the price. Buying later on the rent path uses the house inputs, with the price grown by home value growth.</p>
+        <p><b>Van life.</b> No pay and no retirement contributions on the road. Car and insurance stop because the road budget covers them. A financed van uses a 60-month loan, and the balance is paid off from the sale. The van loses value evenly and sells when you return. After the job search, pay restarts at the share you set.</p>
+        <p><b>Downside and upside cases.</b> Downside: investment return 3 points lower, home prices flat, maintenance +0.5 points, rent growth +2 points, road costs +20%, pay back 15 points lower after 6 extra months of searching. Upside: return 1.5 points higher, home value growth +1.5 points, rent growth −1 point, road costs −10%, pay back 10 points higher.</p>
+      </div></details>
+    </div>
+  </section>
+
+  </div></div>
+</div>
+
+<div class="modal" id="modal" hidden><div class="modal-back" onclick="closeModal()"></div><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="modal-x" onclick="closeModal()" aria-label="Close">×</button><div id="modal-body"></div></div></div>
+
+<script>
+/* =================== Supabase: sign-in + shared storage (replaces the Claude artifact store) =================== */
+const SB_URL='https://ktrnmjzzsvhrodcnfuza.supabase.co', SB_KEY='sb_publishable_BiixcYum8hrnfLlq7kB2JA_534V17qx';
+const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SB_URL, SB_KEY, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:'implicit'}}) : null;
+let SB_USER=null, SB_DENIED=false;
+function sbErr(error){ return {code: /row-level|permission|violates/i.test(error&&error.message||'') ? 'invalid_argument' : 'unavailable', message: error&&error.message}; }
+const snapOf = row => ({id: row?row.id:'', exists: !!row, data: ()=> row ? JSON.parse(JSON.stringify(row._d)) : undefined, metadata:{fromCache:false, hasPendingWrites:false}});
+function makeAdapter(){
+  const subs={plan:[], homes:[]};
+  sb.channel('hr-sync')
+    .on('postgres_changes',{event:'*',schema:'public',table:'hr_plan'},()=>subs.plan.forEach(f=>f()))
+    .on('postgres_changes',{event:'*',schema:'public',table:'hr_homes'},()=>subs.homes.forEach(f=>f()))
+    .subscribe();
+  const fetchPlan = async()=>{ const {data,error}=await sb.from('hr_plan').select('*').eq('id','main').maybeSingle(); if(error) throw sbErr(error); return data ? {id:'main', _d:{state:data.state, updatedAt:data.updated_at}} : null; };
+  const fetchHomes = async()=>{ const {data,error}=await sb.from('hr_homes').select('*').order('created_at'); if(error) throw sbErr(error); return data.map(r=>({id:r.id, _d:r.data})); };
+  return {
+    doc(path){ return {
+      async set(d){ const {error}=await sb.from('hr_plan').upsert({id:'main', state:d.state, updated_at:new Date().toISOString(), updated_by:SB_USER&&SB_USER.email}); if(error) throw sbErr(error); },
+      onSnapshot(next, err){ const run=async()=>{ try{ next(snapOf(await fetchPlan())); }catch(e){ err&&err(e); } }; subs.plan.push(run); run(); return ()=>{}; } }; },
+    collection(){ const self={
+      doc(id){ id = id || ('h'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)); return { id,
+        async set(body){ const {error}=await sb.from('hr_homes').upsert({id, data:body, updated_at:new Date().toISOString()}); if(error) throw sbErr(error); subs.homes.forEach(f=>f()); },
+        async delete(){ const {error}=await sb.from('hr_homes').delete().eq('id',id); if(error) throw sbErr(error); subs.homes.forEach(f=>f()); } }; },
+      async add(body){ const r=self.doc(); await r.set(body); return r; },
+      onSnapshot(next, err){ const run=async()=>{ try{ const rows=await fetchHomes(); next({docs:rows.map(snapOf), size:rows.length, empty:!rows.length, docChanges:()=>[], metadata:{fromCache:false, hasPendingWrites:false}}); }catch(e){ err&&err(e); } }; subs.homes.push(run); run(); return ()=>{}; } };
+      return self; }
+  };
+}
+async function loadPlaces(){
+  const {data}=await sb.from('hr_places').select('*');
+  PLACES={}; (data||[]).forEach(r=>{ PLACES[r.id]={n:r.name, kind:r.kind, ll:[r.lng, r.lat]}; });
+}
+window.claude = { use: async name => {
+  if(name!=='db' || !sb) return null;
+  const {data} = await sb.auth.getSession(); SB_USER = data.session ? data.session.user : null;
+  if(!SB_USER){ renderAuth(); return null; }
+  const {data:mem} = await sb.from('hr_members').select('email').limit(1);
+  if(!mem || !mem.length){ SB_DENIED=true; renderAuth(); return null; }
+  await loadPlaces(); renderAuth();
+  if(TAB==='homes') renderHomes();
+  return makeAdapter();
+}};
+if(sb) sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_IN' && !SB_USER){ try{ if(!sessionStorage.getItem('hr-reloaded')){ sessionStorage.setItem('hr-reloaded','1'); location.reload(); } }catch(e){ location.reload(); } } if(ev==='SIGNED_OUT'){ location.reload(); } });
+function renderAuth(){
+  const el=document.getElementById('auth'); if(!el) return;
+  try{ sessionStorage.removeItem('hr-reloaded'); }catch(e){}
+  if(!sb){ el.innerHTML=''; return; }
+  if(SB_USER){
+    el.innerHTML = `<div class="authline">${SB_DENIED?'<span style="color:var(--warn)">Not on the access list</span>':'Signed in'} · ${esc(SB_USER.email)}</div><button class="btn sm" id="signout">Sign out</button>`;
+    document.getElementById('signout').onclick=()=>sb.auth.signOut();
+  } else {
+    el.innerHTML = `<button class="btn pri sm" id="signin">Sign in to sync</button>`;
+    document.getElementById('signin').onclick=()=>openModal({type:'signin'});
+  }
+}
+function renderSignin(body){
+  body.innerHTML = `<div class="mp"><div class="mp-h"><div><div class="eyebrow">Sign in</div><h2 id="modal-title">Sync the plan between you and Megan</h2><div class="meta">We'll email you a link. Only addresses on the access list can see the plan.</div></div></div>
+    <div class="field"><label for="si-email">Email</label><div class="inp"><input id="si-email" type="email" autocomplete="email" placeholder="you@example.com"></div></div>
+    <div class="add-foot" style="padding:0"><button class="btn pri" id="si-go">Email me a sign-in link</button><span class="msg" id="si-msg"></span></div></div>`;
+  const go=async()=>{ const email=document.getElementById('si-email').value.trim(), msg=document.getElementById('si-msg');
+    if(!/.+@.+\..+/.test(email)){ msg.textContent='Enter a valid email.'; msg.className='msg err'; return; }
+    msg.textContent='Sending…'; msg.className='msg';
+    const {error}=await sb.auth.signInWithOtp({email, options:{emailRedirectTo: location.href.split('#')[0].split('?')[0]}});
+    if(error){ msg.textContent='Couldn’t send the link: '+error.message; msg.className='msg err'; }
+    else { msg.textContent='Check your email for the sign-in link. You can close this.'; } };
+  document.getElementById('si-go').onclick=go;
+  document.getElementById('si-email').addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
+}
+
+/* =================== config + state =================== */
+const START_YEAR = 2027, STD_DED = 32200, SALT_CAP = 40000, MARG = 0.24, CO_TAX = 0.044, PMI_RATE = 0.5, VAN_TERM = 60;
+const PEOPLE = ['Will','Megan'];
+const BOXES = {
+  'box-savings': {title:'Savings', people:true, fields:[
+    ['cash','Cash',[35000,25000],'$','Checking + savings'],
+    ['brok','Brokerage',[120000,60000],'$','Taxable investment accounts'],
+    ['retire','Retirement',[90000,60000],'$','All 401(k)s, IRAs, Roth'],
+  ]},
+  'box-income': {title:'Income', people:true, fields:[
+    ['gross','Gross income',[170000,130000],'$yr','Before tax'],
+    ['bank','Take-home (hits bank account)',[6000,5150],'$mo','Pays the bills; what’s left stays in cash'],
+    ['bdd','Brokerage direct deposit',[3000,2000],'$mo','Invested automatically; not part of take-home'],
+    ['contrib','Retirement contributions',[24000,18000],'$yr','Including employer match'],
+    ['raise','Annual raises',3,'%'],
+  ]},
+  'box-exp': {title:'Monthly expenses', people:true, fields:[
+    ['rent','Rent',[1600,1600],'$mo','Incl. renters insurance, parking'],
+    ['car','Cars',[450,450],'$mo','Payments, gas, maintenance'],
+    ['ins','Insurance',[175,175],'$mo','Car, umbrella, anything not taken out of pay'],
+    ['other','Other recurring',[3100,3100],'$mo','Groceries, dining, travel, subscriptions'],
+    ['rentG','Rent increase per year',3,'%'],
+    ['rentBuyYears','Rent path: buy after',0,'yr','0 = keep renting'],
+  ]},
+  'box-buy': {title:'Buy a house', sq:'var(--buy)', fields:[
+    ['price','Purchase price',850000,'$'],
+    ['down','Down payment',20,'%','Below 20% adds PMI'],
+    ['rate','Mortgage rate (30-yr fixed)',6.25,'%'],
+    ['reno','Renovation after closing',40000,'$'],
+    ['bddOwn','Brokerage deposit while owning',75,'%','Share of today’s deposit that keeps going to brokerage; the rest goes to checking for the house'],
+    ['hins','Homeowners insurance',4500,'$yr','Front Range hail pushes this up'],
+    ['app','Home value growth',3.5,'%','Per year'],
+    ['ptax','Property tax',0.55,'%','Of home value per year'],
+    ['maint','Maintenance',1,'%','Of home value per year'],
+    ['hoa','HOA',0,'$mo'],
+    ['util','Extra utilities vs. apartment',250,'$mo'],
+    ['closeBuy','Closing costs to buy',2.5,'%'],
+    ['sell','Cost to sell',6,'%','Used to value your equity'],
+  ]},
+  'box-road': {title:'Van life', sq:'var(--van)', fields:[
+    ['roadYears','Time on the road',2,'yr'],
+    ['vanPrice','Built-out van',100000,'$'],
+    ['vanFin','Van financed',0,'%','Share of the price on a loan'],
+    ['vanRate','Van loan rate',8.5,'%','60-month loan'],
+    ['r_fuel','Fuel',800,'$mo'],
+    ['r_food','Food + eating out',1500,'$mo'],
+    ['r_fun','Campsites + fun',1300,'$mo','Parks, showers, flights home'],
+    ['r_health','Health insurance',900,'$mo','Estimate; check ACA'],
+    ['r_van','Van insurance + repairs',500,'$mo'],
+    ['r_misc','Storage unit + Starlink',380,'$mo'],
+    ['side','Side income on the road',0,'$mo','After tax'],
+    ['after','After the road',null,'sel'],
+    ['gap','Job search when back',3,'mo'],
+    ['returnPct','Pay when you go back',90,'%','Share of what you’d have been making'],
+    ['bddVan','Brokerage deposit after the road',0,'%','Share of the old deposit you restart; the rest goes to checking'],
+    ['vanResale','Van resale value',60,'%','Share of price when you sell'],
+    ['vanSetup','Setup costs',8000,'$','Gear, moving into storage'],
+  ]},
+  'box-mkt': {title:'Markets, cash + horizon', fields:[
+    ['cashMonths','Cash to keep in checking',6,'mo','Months of expenses; anything above is invested in brokerage'],
+    ['ret','Investment return',6.5,'%','Brokerage + retirement, per year'],
+    ['cashY','Cash yield',3.5,'%','High-yield savings, per year'],
+    ['infl','Inflation',3,'%'],
+    ['horizon','Years to project',10,'yr'],
+  ]},
+};
+const DEFAULTS = {after:'rent', pp:{}}, UNIT = {}, LABEL = {};
+Object.values(BOXES).forEach(b=>b.fields.forEach(([id,l,d,u])=>{
+  LABEL[id]=l; if(u==='sel') return; UNIT[id]=u;
+  if(Array.isArray(d)){ DEFAULTS.pp[id]=d.slice(); DEFAULTS[id]=d[0]+d[1]; } else DEFAULTS[id]=d; }));
+DEFAULTS.activeHome='';
+const clone = o => JSON.parse(JSON.stringify(o));
+const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} } };
+
+function fromState(s){
+  const q=clone(DEFAULTS); if(!s||typeof s!=='object') return q;
+  for(const k in DEFAULTS) if(k!=='pp' && s[k]!==undefined && s[k]!==null) q[k]=s[k];
+  if(s.pp) for(const k in DEFAULTS.pp) if(Array.isArray(s.pp[k])){ q.pp[k]=s.pp[k].map(Number); q[k]=q.pp[k][0]+q.pp[k][1]; }
+  if(!s.v4 && q.horizon===12) q.horizon=10;
+  return q;
+}
+let LOCAL_RAW=null; try{ LOCAL_RAW=JSON.parse(store.get('homeOrRoad.v3')||'null'); }catch(e){}
+let P = fromState(LOCAL_RAW);
+let REAL = store.get('homeOrRoad.real2')!=='0';
+let TAB = ['summary','rent','buy','van','homes','inputs'].includes(store.get('homeOrRoad.tab')) ? store.get('homeOrRoad.tab') : 'summary';
+let OPEN = {}; try{ OPEN = JSON.parse(store.get('homeOrRoad.open2')||'{}')||{}; }catch(e){}
+const EDIT = {};
+function save(){ store.set('homeOrRoad.v3', JSON.stringify(Object.assign({}, P, {v4:true}))); }
+/* shared store: plan/main holds the inputs, houses/* holds saved homes */
+let DB=null, PLAN_REF=null, HOUSES_COL=null, READONLY=false, SEEDED=false, WRITING=false, AGAIN=false, REMOTE_WAITING=null, SHARED_READY=false, LOCAL_DIFFERS=false;
+function stateOf(q){ return Object.assign(clone(q), {v4:true}); }
+function commit(){ save(); if(PLAN_REF && !READONLY) writePlan(); }
+async function writePlan(){
+  if(WRITING){ AGAIN=true; return; } WRITING=true;
+  try{ do{ AGAIN=false; await PLAN_REF.set({state:stateOf(P), updatedAt:Date.now()}); } while(AGAIN); }
+  catch(e){ if(e&&e.code==='invalid_argument'){ READONLY=true; setSync(); if(TAB==='inputs') Object.keys(BOXES).forEach(renderBox); } }
+  finally{ WRITING=false; }
+}
+function setSync(){
+  const el=document.getElementById('sync'); if(!el) return;
+  el.className='sync'+(PLAN_REF?(READONLY?' ro':' on'):'');
+  el.querySelector('span').textContent = PLAN_REF ? (READONLY?'Shared plan · view only':'Shared plan · synced') : 'Saved in this browser only';
+  const box=document.getElementById('in-sync');
+  if(box) box.innerHTML = (PLAN_REF && LOCAL_DIFFERS && !READONLY) ? alertHTML('warn',`<b>This browser had different numbers saved before the plan was shared.</b> The shared numbers are showing.<button id="use-local">Use this browser's numbers instead</button> <button id="dismiss-local">Keep shared</button>`) : '';
+  const ul=document.getElementById('use-local'); if(ul) ul.onclick=()=>{ P=fromState(LOCAL_RAW); LOCAL_DIFFERS=false; commit(); Object.keys(BOXES).forEach(renderBox); recompute(); setSync(); };
+  const dl=document.getElementById('dismiss-local'); if(dl) dl.onclick=()=>{ LOCAL_DIFFERS=false; setSync(); };
+}
+function applyRemote(st){
+  const q=fromState(st); if(JSON.stringify(q)===JSON.stringify(P)) return;
+  if(Object.keys(EDIT).length){ REMOTE_WAITING=st; return; }
+  P=q; save(); if(TAB==='inputs') Object.keys(BOXES).forEach(renderBox); recompute();
+}
+async function connectStore(){
+  try{
+    if(!(window.claude && typeof window.claude.use==='function')) return;
+    DB = await window.claude.use('db'); if(!DB) return;
+    PLAN_REF = DB.doc('plan/main'); HOUSES_COL = DB.collection('houses'); setSync();
+    PLAN_REF.onSnapshot(snap=>{
+      if(!snap.exists){ if(!snap.metadata.fromCache && !SEEDED){ SEEDED=true; SHARED_READY=true; if(LOCAL_RAW && JSON.stringify(fromState(LOCAL_RAW))!==JSON.stringify(fromState(null))) writePlan(); } return; }
+      SHARED_READY=true;
+      const st=(snap.data()||{}).state; if(!st) return;
+      if(!SEEDED){ SEEDED=true;
+        const local=fromState(LOCAL_RAW), shared=fromState(st), dflt=JSON.stringify(fromState(null));
+        const localReal = !!LOCAL_RAW && JSON.stringify(local)!==dflt;
+        if(localReal && JSON.stringify(shared)===dflt){ P=local; save(); writePlan(); recompute(); setSync(); return; }   // shared copy is only the examples: adopt this browser's numbers
+        LOCAL_DIFFERS = localReal && JSON.stringify(local)!==JSON.stringify(shared); setSync(); }
+      if(snap.metadata.hasPendingWrites) return;
+      applyRemote(st);
+    }, e=>{ PLAN_REF=null; HOUSES_COL=null; setSync(); });
+    let migrated=false;
+    HOUSES_COL.onSnapshot(qs=>{
+      const list=qs.docs.map(d=>Object.assign({id:d.id}, d.data()));
+      if(!migrated && !qs.metadata.fromCache){ migrated=true; const loc=loadLocalHouses(); if(qs.empty && loc.length){ (async()=>{ for(const h of loc){ const {id,...body}=h; try{ await HOUSES_COL.doc(id).set(body); }catch(e){} } })(); } }
+      HOUSES=list.sort((a,b)=>(a.addedAt||0)-(b.addedAt||0)); renderHomesNav(); if(TAB==='homes') renderHomes();
+    }, e=>{});
+  }catch(e){ PLAN_REF=null; HOUSES_COL=null; setSync(); }
+}
+
+/* =================== formatting =================== */
+const M$ = (v,dp) => { const s=v<0?'−':''; v=Math.abs(v);
+  if(v>=1e6) return s+'$'+(v/1e6).toFixed(dp??2)+'M';
+  if(v>=1e4) return s+'$'+Math.round(v/1e3)+'K';
+  if(v>=1e3) return s+'$'+(v/1e3).toFixed(1)+'K';
+  return s+'$'+Math.round(v); };
+const F$ = v => (v<0?'−$':'$')+Math.round(Math.abs(v)).toLocaleString('en-US');
+const T$ = v => { const r=Math.round(v); if(r===0) return '–'; return r<0 ? '('+Math.abs(r).toLocaleString('en-US')+')' : r.toLocaleString('en-US'); };
+const S$ = v => (v>=0?'+':'−')+M$(Math.abs(v));
+const grp = v => (+v).toLocaleString('en-US',{maximumFractionDigits:3});
+const pct = v => (Math.round(v*10)/10)+'%';
+const monEnd = m => m===0 ? 'today' : new Date(START_YEAR, m-1, 1).toLocaleString('en-US',{month:'short',year:'numeric'});
+const mon = m => new Date(START_YEAR, m, 1).toLocaleString('en-US',{month:'short',year:'numeric'});
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const yrs = n => n===1?'1 year':(n%1?n.toFixed(1):n)+' years';
+
+/* =================== model =================== */
+const roadBurn = p => p.r_fuel+p.r_food+p.r_fun+p.r_health+p.r_van+p.r_misc;
+const livingOf = p => p.car+p.ins+p.other;
+
+function run(kind, p){
+  const H = Math.max(1, Math.round(p.horizon)), M = H*12;
+  const ri=Math.pow(1+p.ret/100,1/12)-1, rc=Math.pow(1+p.cashY/100,1/12)-1, am=Math.pow(1+p.app/100,1/12)-1;
+  const roadM = kind==='van' ? Math.max(1,Math.round(p.roadYears*12)) : 0;
+  const laterBuyM = kind==='rent' && p.rentBuyYears>0 ? Math.round(p.rentBuyYears*12) : (kind==='van' && p.after==='buy' ? roadM : null);
+  const roadMul = p._roadMul||1;
+  let cash=p.cash, brok=p.brok, retire=p.retire, home=0, mort=0, pmt=0, mr=0, van=0, vanBal=0, vanPmt=0, bought=false;
+  let cashAtClose=0, buyM=null, loan0=0, price0=0, closeCost=0, renoCost=0, down0=0, vanCashIn=0, vanSaleNet=0;
+  const vr = p.vanRate/100/12;
+  const vanDep = roadM ? p.vanPrice*(1-p.vanResale/100)/roadM : 0;
+  let draw=0;
+  const spend = a => { const c=Math.min(Math.max(cash,0),a); cash-=c; brok-=(a-c); draw+=a-c; };
+  function buyHome(m){
+    price0 = p.price*Math.pow(1+p.app/100, m/12);
+    down0 = price0*p.down/100; closeCost = price0*p.closeBuy/100; renoCost = p.reno*Math.pow(1+p.infl/100,m/12);
+    cashAtClose = down0+closeCost+renoCost; spend(cashAtClose);
+    home=price0; mort=price0-down0; loan0=mort; mr=p.rate/100/12;
+    pmt = mr>0 ? mort*mr/(1-Math.pow(1+mr,-360)) : mort/360; bought=true; buyM=m;
+  }
+  if(kind==='buy') buyHome(0);
+  if(kind==='van'){
+    const fin=Math.min(100,Math.max(0,p.vanFin||0))/100;
+    vanBal=p.vanPrice*fin; vanCashIn=p.vanPrice*(1-fin)+p.vanSetup; spend(vanCashIn); van=p.vanPrice;
+    vanPmt = vanBal>0 ? (vr>0 ? vanBal*vr/(1-Math.pow(1+vr,-VAN_TERM)) : vanBal/VAN_TERM) : 0;
+  }
+  const equity = ()=> bought ? home*(1-p.sell/100)-mort : 0;
+  const snap = m => ({m, cash, brok, retire, equity:equity(), home, mort, van, vanBal, liq:cash+brok, nw:cash+brok+retire+equity()+van-vanBal});
+  const months=[]; const start=snap(0); const draw0=draw;
+
+  for(let m=0;m<M;m++){
+    draw=0;
+    const y=Math.floor(m/12), f=Math.pow(1+p.infl/100,m/12), g=Math.pow(1+p.raise/100,y);
+    const onRoad = kind==='van' && m<roadM, inGap = kind==='van' && m>=roadM && m<roadM+p.gap;
+    if(kind==='van' && m===roadM){ vanSaleNet=van-vanBal; cash+=vanSaleNet; van=0; vanBal=0; }
+    if(laterBuyM!==null && m===laterBuyM && !bought) buyHome(m);
+    const fac = kind==='van' ? p.returnPct/100 : 1;
+    const r = {bank:0,bdd:0,contrib:0,rent:0,pi:0,interest:0,pt:0,hins:0,maint:0,hoa:0,util:0,pmi:0,car:0,ins:0,other:0,road:0,vanLoan:0,side:0,taxBen:0};
+    if(onRoad){
+      r.side=p.side*f; r.road=roadBurn(p)*roadMul*f; van-=vanDep;
+      if(vanBal>0){ const it=vanBal*vr, pr=Math.min(vanPmt-it,vanBal); vanBal-=pr; r.vanLoan=it+pr; }
+    } else {
+      r.car=p.car*f; r.ins=p.ins*f; r.other=p.other*f;
+      if(!inGap){
+        // share of the brokerage direct deposit that stays in brokerage; the rest is redirected to checking
+        let keep = 1;
+        if(kind==='van') keep = p.bddVan/100;
+        if(bought) keep = Math.min(keep, p.bddOwn/100);
+        keep = Math.max(0, Math.min(1, keep));
+        const dep = p.bdd*g*fac;
+        r.bdd = dep*keep; r.bank = p.bank*g*fac + dep*(1-keep); r.contrib=p.contrib*g*fac/12;
+      }
+      if(bought){
+        r.interest = mort>0 ? mort*mr : 0;
+        const princ = mort>0 ? Math.min(pmt-r.interest, mort) : 0;
+        r.pi = mort>0 ? r.interest+princ : 0; mort-=princ; home*=(1+am);
+        r.pt=home*p.ptax/100/12; r.hins=p.hins*f/12; r.maint=home*(p.maint+(p._maintAdd||0))/100/12; r.hoa=p.hoa*f; r.util=p.util*f;
+        if(p.down<20 && mort>0.78*price0) r.pmi=loan0*PMI_RATE/100/12;
+        if(r.bank+r.bdd>0){
+          const grossM=p.gross*g*fac/12, salt=Math.min(SALT_CAP,(r.pt+grossM*CO_TAX)*12);
+          r.taxBen=Math.max(0, r.interest*12+salt-STD_DED*f)*MARG/12;
+        }
+      } else r.rent = p.rent*Math.pow(1+p.rentG/100, m/12);
+    }
+    r.housing = r.rent+r.pi+r.pt+r.hins+r.maint+r.hoa+r.util+r.pmi;
+    r.living = r.car+r.ins+r.other;
+    r.bankNet = r.bank+r.taxBen+r.side-r.housing-r.living-r.road-r.vanLoan;
+    r.saved = r.bdd + r.bankNet;
+    brok += r.bdd;
+    if(r.bankNet>=0) cash+=r.bankNet; else spend(-r.bankNet);
+    retire += r.contrib;
+    const tgt=Math.max(0,p.cashMonths??6)*(r.housing+r.living+r.road+r.vanLoan); r.sweep=0;
+    if(cash>tgt){ r.sweep=cash-tgt; cash-=r.sweep; brok+=r.sweep; }
+    r.brokDraw=draw; r.invested=r.bdd+r.contrib; r.brokGrowth=brok*ri; r.retGrowth=retire*ri; r.cashGrowth=cash>0?cash*rc:0;
+    cash *= cash>0?(1+rc):1; brok *= (1+ri); retire *= (1+ri);   // a negative brokerage balance = borrowing, charged at the investment return
+    Object.assign(r, snap(m+1)); r.onRoad=onRoad; r.inGap=inGap;
+    months.push(r);
+  }
+  const years=[];
+  for(let y=0;y<H;y++){
+    const sl=months.slice(y*12,y*12+12), sum=k=>sl.reduce((a,x)=>a+x[k],0), e=sl[sl.length-1];
+    years.push({y, year:START_YEAR+y, m:e.m, income:sum('bank')+sum('taxBen')+sum('side'), bank:sum('bank'), bdd:sum('bdd'), bankNet:sum('bankNet'), invested:sum('invested'), brokDraw:sum('brokDraw'), sweep:sum('sweep'), toBrok:sum('bdd')+sum('sweep'), taxBen:sum('taxBen'),
+      housing:sum('housing'), rent:sum('rent'), pi:sum('pi'), living:sum('living'), road:sum('road')+sum('vanLoan'), saved:sum('saved'), contrib:sum('contrib'),
+      cash:e.cash, brok:e.brok, liq:e.liq, retire:e.retire, equity:e.equity, home:e.home, mort:e.mort, van:e.van-e.vanBal, nw:e.nw, onRoad:sl[0].onRoad});
+  }
+  const all=[start,...months];
+  const minLiq = all.reduce((a,s)=>s.liq<a.liq?s:a, all[0]);
+  const firstNeg = all.find(s=>s.liq<-1) || null;
+  return {kind, p, H, M, roadM, start, draw0, months, years, all, end:months[M-1], first:months[0], minLiq, firstNeg,
+          cashAtClose, buyM, price0, loan0, down0, closeCost, renoCost, pmt, vanSaleNet, vanCashIn, vanPmt};
+}
+
+const dfl = (p,m) => REAL ? Math.pow(1+p.infl/100, m/12) : 1;
+const B = (p,v,m) => v/dfl(p,m);
+const TODAY = (p,v,m) => v/Math.pow(1+p.infl/100, m/12);
+function variant(p, o){ return Object.assign({}, p, o); }
+function downside(p){ return variant(p,{ret:p.ret-3, app:0, _maintAdd:0.5, rentG:p.rentG+2, _roadMul:1.2, returnPct:Math.max(0,p.returnPct-15), gap:p.gap+6}); }
+function upside(p){ return variant(p,{ret:p.ret+1.5, app:p.app+1.5, rentG:Math.max(0,p.rentG-1), _roadMul:0.9, returnPct:p.returnPct+10}); }
+
+function beAppFor(p, iters){
+  const gapAt = a => { const q=variant(p,{app:a}); return run('buy',q).end.nw-run('rent',q).end.nw; };
+  let lo=-6, hi=20;
+  if(gapAt(lo)>0) return -Infinity; if(gapAt(hi)<0) return Infinity;
+  for(let i=0;i<(iters||40);i++){ const mid=(lo+hi)/2; if(gapAt(mid)>=0) hi=mid; else lo=mid; }
+  return (lo+hi)/2;
+}
+function computeAll(p){
+  const R={rent:run('rent',p), buy:run('buy',p), van:run('van',p)};
+  const pd=downside(p), pu=upside(p);
+  const D={rent:run('rent',pd), buy:run('buy',pd), van:run('van',pd)};
+  const U={rent:run('rent',pu), buy:run('buy',pu), van:run('van',pu)};
+  let be=null; for(let i=1;i<R.buy.all.length;i++){ if(R.buy.all[i].nw>=R.rent.all[i].nw){ be=i; break; } }
+  // break-even home value growth (buy = rent path at horizon)
+  const beApp = beAppFor(p);
+  const appRows=[p.app-3,p.app-1.5,p.app,p.app+1.5,p.app+3].map(v=>Math.round(v*100)/100);
+  const rateCols=[p.rate-1,p.rate-0.5,p.rate,p.rate+0.5,p.rate+1].map(v=>Math.round(v*1000)/1000);
+  const bSens=appRows.map(a=>rateCols.map(rt=>{ const q=variant(p,{app:a,rate:rt}); return run('buy',q).end.nw - run('rent',q).end.nw; }));
+  const tripRows=[...new Set([1,1.5,2,3,p.roadYears])].sort((a,b)=>a-b);
+  const payCols=[...new Set([75,90,100,110,p.returnPct])].sort((a,b)=>a-b);
+  const vSens=tripRows.map(t=>payCols.map(pc=>run('van',variant(p,{roadYears:t,returnPct:pc})).end.nw - R.rent.end.nw));
+  const A={p,R,D,U,be,beApp,appRows,rateCols,bSens,tripRows,payCols,vSens};
+  const v=R.van;
+  const trip=v.months.filter(x=>x.onRoad);
+  A.vanOOP = trip.reduce((a,x)=>a+TODAY(p,x.road+x.vanLoan-x.side,x.m-1),0) + v.vanCashIn - TODAY(p,v.vanSaleNet,v.roadM);
+  A.vanBurn = trip.length ? trip[0].road+trip[0].vanLoan-trip[0].side : 0;
+  A.runway = v.firstNeg ? Math.max(0, v.firstNeg.m-1) : Infinity;   // months of road covered before cash runs out
+  return A;
+}
+
+/* van gap decomposition, today's dollars at horizon end */
+function vanCost(A){
+  const p=A.p, r=A.R.rent, v=A.R.van, M=r.M, gM=Math.pow(1+p.ret/100,1/12);
+  const fv = (amt,m) => amt*Math.pow(gM, M-m-1);
+  let saved=0, road=0, loan=0, gapM=0, pay=0, contrib=0;
+  for(let m=0;m<M;m++){
+    const a=r.months[m], b=v.months[m];
+    contrib += fv(a.contrib-b.contrib, m);
+    if(b.onRoad){ saved += fv(a.saved, m); road += fv(b.road-b.side, m); loan += fv(b.vanLoan, m); }
+    else if(b.inGap){ gapM += fv(a.saved-b.saved, m); }
+    else pay += fv(a.saved-b.saved, m);
+  }
+  const vanNet = fv(v.vanCashIn,0) + loan - fv(v.vanSaleNet, v.roadM-1);
+  const total = r.end.nw - v.end.nw, T = x => TODAY(p,x,M);
+  const parts = [
+    ['Savings you stop making', T(saved)],
+    ['Road spending', T(road)],
+    ['Van, net of resale', T(vanNet)],
+    ['Months job hunting', T(gapM)],
+    ['Lower pay after you return', T(pay)],
+    ['Skipped retirement contributions', T(contrib)],
+  ];
+  const other = T(total)-parts.reduce((a,x)=>a+x[1],0);
+  if(Math.abs(other)>15000) parts.push([p.after==='buy'||p.rentBuyYears>0?'Timing of the house purchase':'Other', other]);
+  return {parts, total:T(total)};
+}
+
+function ownCost(A){
+  const p=A.p, b=A.R.buy, r=A.R.rent; let o={interest:0,pt:0,hins:0,maint:0,hoa:0,util:0,pmi:0,tax:0,rent:0};
+  b.months.forEach(x=>{ const d=dfl(p,x.m-1); o.interest+=x.interest/d; o.pt+=x.pt/d; o.hins+=x.hins/d; o.maint+=x.maint/d; o.hoa+=x.hoa/d; o.util+=x.util/d; o.pmi+=x.pmi/d; o.tax+=x.taxBen/d; });
+  r.months.forEach(x=>{ o.rent+=x.rent/dfl(p,x.m-1); });
+  const e=b.end, sellCost=B(p,e.home*p.sell/100,e.m), apprec=B(p,e.home-b.price0,e.m);
+  const opp = B(p,b.cashAtClose*(Math.pow(1+p.ret/100,b.H)-1),e.m);
+  const rows=[['Mortgage interest',o.interest],['Property tax',o.pt],['Homeowners insurance',o.hins],['Maintenance',o.maint],['HOA + extra utilities',o.hoa+o.util]];
+  if(o.pmi>1) rows.push(['PMI',o.pmi]);
+  rows.push(['Closing costs to buy',b.closeCost],['Cost to sell at the end',sellCost],['Return given up on cash at closing',opp],['Mortgage tax savings',-o.tax],['Home value growth',-apprec]);
+  return {rows, own:rows.reduce((a,x)=>a+x[1],0), rent:o.rent};
+}
+
+/* =================== naming + status =================== */
+const NAME = p => ({rent: p.rentBuyYears>0 ? `Rent → Buy ${START_YEAR+Math.round(p.rentBuyYears*12)/12|0}` : 'Rent', buy:'Buy now', van: p.after==='buy'?'Van → Buy':'Van Life'});
+const COL = {rent:'--rent', buy:'--buy', van:'--van'};
+const VS = p => p.rentBuyYears>0 ? 'vs. rent-then-buy' : 'vs. renting';
+function liqStatus(run){
+  const ml=run.minLiq, f=run.first, cushion=6*(f.housing+f.living+f.road), v=B(run.p,ml.liq,ml.m), fn=run.firstNeg;
+  if(fn){
+    let t;
+    if(fn.m===0) t = run.kind==='van' ? 'Van costs more than your cash' : 'Short at closing';
+    else if(run.buyM!==null && run.buyM>0 && fn.m===run.buyM+1) t = `Short at home purchase`;
+    else t = `Out of cash ${monEnd(fn.m)}`;
+    return {cls:'bad', txt:t};
+  }
+  if(ml.liq<cushion) return {cls:'warn', txt:`Cash dips to ${M$(v)}`};
+  return {cls:'good', txt:`Cash never below ${M$(v)}`};
+}
+
+/* =================== charts =================== */
+const FONT = {family:'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', size:11};
+Chart.register({id:'roadBand',beforeDatasetsDraw(ch,a,o){
+  if(!o||!o.to) return; const {ctx,chartArea:c,scales:{x}}=ch;
+  const x0=Math.max(c.left,x.getPixelForValue(o.from??START_YEAR)), x1=Math.min(x.getPixelForValue(o.to),c.right);
+  ctx.save(); ctx.fillStyle=o.color; ctx.fillRect(x0,c.top,Math.max(0,x1-x0),c.bottom-c.top);
+  ctx.fillStyle=o.text; ctx.font='600 10.5px Inter, system-ui, sans-serif'; ctx.fillText((o.label||'ON THE ROAD'),x0+8,c.top+14); ctx.restore(); }});
+Chart.register({id:'crosshair',afterDatasetsDraw(ch,a,o){
+  if(!o||!o.color) return; const act=ch.tooltip&&ch.tooltip.getActiveElements(); if(!act||!act.length) return;
+  const {ctx,chartArea:c}=ch, x=act[0].element.x; ctx.save(); ctx.strokeStyle=o.color; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(x,c.top); ctx.lineTo(x,c.bottom); ctx.stroke(); ctx.restore(); }});
+Chart.register({id:'endLabels',afterDatasetsDraw(ch,a,o){
+  if(!o||!o.on) return; const {ctx}=ch; ctx.save(); ctx.font='600 11.5px "Inter Tight", Inter, system-ui, sans-serif'; ctx.textBaseline='middle';
+  const items=ch.data.datasets.map((d,i)=>{ const meta=ch.getDatasetMeta(i); if(meta.hidden) return null; const pt=meta.data[meta.data.length-1]; return pt?{y:pt.y,x:pt.x,c:d.borderColor,t:o.fmt(d.data[d.data.length-1].y)}:null; }).filter(Boolean).sort((p,q)=>p.y-q.y);
+  for(let i=1;i<items.length;i++) if(items[i].y-items[i-1].y<14) items[i].y=items[i-1].y+14;
+  items.forEach(it=>{ ctx.fillStyle=it.c; ctx.beginPath(); ctx.arc(it.x,it.y,3.5,0,Math.PI*2); ctx.fill(); ctx.fillText(it.t,it.x+9,it.y); }); ctx.restore(); }});
+const CH={};
+function baseOpts(xMin,xMax,step){
+  return {responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
+    layout:{padding:{top:6,right:8}},
+    scales:{x:{type:'linear',min:xMin,max:xMax,ticks:{stepSize:step||1,color:css('--muted'),font:FONT,callback:v=>Number.isInteger(v)?String(v):''},grid:{display:false},border:{color:css('--line-2')}},
+            y:{ticks:{color:css('--muted'),font:FONT,callback:v=>M$(v,1),maxTicksLimit:6,padding:8},grid:{color:c=>c.tick.value===0?css('--line-2'):css('--grid'),drawTicks:false},border:{display:false}}},
+    plugins:{legend:{display:false}, crosshair:{color:css('--line-2')},
+      tooltip:{backgroundColor:css('--card-2'),titleColor:css('--ink'),bodyColor:css('--ink-2'),borderColor:css('--line-2'),borderWidth:1,padding:12,boxPadding:5,usePointStyle:true,cornerRadius:10,
+        titleFont:{...FONT,size:12,weight:'600'},bodyFont:{...FONT,size:12},
+        callbacks:{title:i=>{const t=i[0].parsed.x;const yr=Math.floor(t+1e-6),mo=Math.round((t-yr)*12);return new Date(yr,mo,1).toLocaleString('en-US',{month:'short',year:'numeric'});},
+                   label:c=>` ${c.dataset.label}: ${M$(c.parsed.y)}`}}}};
+}
+function chart(id,cfg){ if(CH[id]) CH[id].destroy(); const el=document.getElementById(id); if(!el) return; CH[id]=new Chart(el,cfg); }
+function grad(color, alpha){ return (ctx)=>{ const c=ctx.chart, a=c.chartArea; if(!a) return 'transparent'; const g=c.ctx.createLinearGradient(0,a.top,0,a.bottom); g.addColorStop(0,hexA(color,alpha)); g.addColorStop(1,hexA(color,0)); return g; }; }
+function hexA(h,a){ h=h.replace('#',''); if(h.length===3) h=h.split('').map(x=>x+x).join(''); const n=parseInt(h,16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
+function lineDS(label,color,data,o={}){ return Object.assign({label,data,borderColor:color,backgroundColor:color,borderWidth:2.25,pointRadius:0,pointHoverRadius:5,pointHoverBorderWidth:2,pointHoverBorderColor:css('--card'),tension:.15},o); }
+function stackChart(id, run, parts){
+  const p=run.p, rows=[run.start,...run.years];
+  const labels=rows.map((y,i)=> i===0?'Today':String(START_YEAR+i-1));
+  const o=baseOpts(); o.scales.x={stacked:true,ticks:{color:css('--muted'),font:FONT},grid:{display:false},border:{color:css('--line-2')}}; o.scales.y.stacked=true;
+  o.plugins.crosshair={}; o.plugins.tooltip.callbacks={title:i=>i[0].label==='Today'?'Today':'End of '+i[0].label,label:c=>` ${c.dataset.label}: ${M$(c.parsed.y)}`,footer:i=>'Total  '+M$(i.reduce((a,x)=>a+x.parsed.y,0))};
+  o.plugins.tooltip.footerFont={...FONT,size:12,weight:'600'}; o.plugins.tooltip.footerColor=css('--ink');
+  chart(id,{type:'bar',data:{labels,datasets:parts.map(([k,l,c],i)=>({label:l,data:rows.map(y=>B(p,Math.max(0,k==='van'?(y.van-(y.vanBal||0)):y[k]),y.m)),backgroundColor:css(c),borderColor:css('--card'),borderWidth:{top:i===parts.length-1?0:2,left:0,right:0,bottom:0},borderRadius:i===parts.length-1?{topLeft:5,topRight:5}:0,borderSkipped:false,maxBarThickness:34}))},options:o});
+  return parts.map(([k,l,c])=>`<span><i class="sq" style="background:var(${c})"></i>${l}</span>`).join('');
+}
+const COMP = {cash:['cash','Cash','--c-cash'], brok:['brok','Brokerage','--c-brok'], retire:['retire','Retirement','--c-ret'], equity:['equity','Home equity','--c-eq'], van:['van','Van','--c-van']};
+function spark(series, lo, hi, color){
+  const w=300,h=46, n=series.length-1, X=i=>(i/n*w).toFixed(1), Y=v=>(h-3-(v-lo)/(hi-lo||1)*(h-8)).toFixed(1);
+  const pts=series.map((v,i)=>`${X(i)},${Y(v)}`).join(' ');
+  const id='g'+Math.random().toString(36).slice(2,8);
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" width="100%" height="46" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".28"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><polygon points="0,${h} ${pts} ${w},${h}" fill="url(#${id})"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+}
+
+/* =================== helpers =================== */
+function kpis(el, items){ el.innerHTML = items.map(([l,v,s,cls])=>`<div class="kpi"><div class="l">${l}</div><div class="v ${cls||''}">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`).join(''); }
+const chip = (txt,cls) => `<span class="chip ${cls||'nt'}">${txt}</span>`;
+const dchip = v => chip(S$(v), v>=0?'up':'dn');
+function hbars(el, rows, opts={}){
+  const max = Math.max(1, ...rows.map(r=>Math.abs(r[1])));
+  el.innerHTML = rows.map(([l,v,color,cls])=>`<div class="hb-row ${cls||''}"><span class="lab" title="${esc(l)}">${l}</span><div class="hb-track"><div class="hb-fill" style="width:${Math.max(1.5,Math.abs(v)/max*100).toFixed(2)}%;background:${color||'var(--c-brok)'}"></div></div><span class="val">${opts.fmt?opts.fmt(v):F$(v)}</span></div>`).join('');
+}
+function sensCell(v, maxAbs){ const a=Math.min(1,Math.abs(v)/maxAbs)*0.5+0.08, rgb=v>=0?css('--div-pos'):css('--div-neg'); return `background:rgba(${rgb},${a.toFixed(3)})`; }
+function alertHTML(cls, html){ return `<div class="alert ${cls}"><span class="ai">!</span><div>${html}</div></div>`; }
+const hl = (k,t) => `<em class="hl-${k}">${t}</em>`;
+const signHl = (v,t) => `<em class="${v>=0?'hl-pos':'hl-neg'}">${t}</em>`;
+
+/* =================== summary =================== */
+let A=null;
+function renderSummary(){
+  const p=A.p, R=A.R, N=NAME(p), H=R.rent.H, E=START_YEAR+H-1;
+  const endNW = k => B(p,R[k].end.nw,R[k].end.m), base=endNW('rent');
+  const ks=['rent','buy','van'], order=[...ks].sort((a,b)=>endNW(b)-endNW(a)), top=order[0];
+  const dB=endNW('buy')-base, dV=endNW('van')-base;
+  document.getElementById('s-eyebrow').textContent = `${H} years from Jan 2027 · ${REAL?"today's":'future'} dollars`;
+  document.getElementById('s-thesis').innerHTML =
+    `${top==='rent'?(p.rentBuyYears>0?'Renting first, then buying,':'Renting and investing'):top==='buy'?'Buying now':'Van life'} builds the most wealth: ${hl(top,M$(endNW(top)))} by ${E}. `+
+    (top==='rent' ? `Buying now trails by ${signHl(dB,M$(Math.abs(dB)))}; the van trip costs ${signHl(dV,M$(Math.abs(dV)))}.`
+                  : `The van trip ends ${signHl(dV,M$(Math.abs(dV)))} ${dV>=0?'ahead of':'behind'} the rent path.`);
+  document.getElementById('s-lede').textContent = `Each path starts from the same balances, pay and spending. The rent path is the baseline${p.rentBuyYears>0?` (rent until ${START_YEAR+Math.round(p.rentBuyYears)}, then buy)`:''}.`;
+  // alerts
+  const al=[];
+  if(PLAN_REF && LOCAL_DIFFERS && !READONLY) al.push(alertHTML('warn',`<b>This browser has numbers that differ from the shared plan.</b> The shared plan is showing.<button data-go="inputs">Review on Assumptions</button>`));
+  const ex=[0,1].map(w=>Object.keys(DEFAULTS.pp).filter(k=>P.pp[k][w]===DEFAULTS.pp[k][w]).length);
+  if(ex[1]>=6||ex[0]>=6) al.push(alertHTML('warn',`<b>${ex[1]>=6?"Megan's":"Will's"} numbers are still the examples.</b> Results will move once they're entered.<button data-go="inputs">Enter numbers</button>`));
+  ks.forEach(k=>{ if(R[k].firstNeg) al.push(alertHTML('bad',`<b>${N[k]}: ${liqStatus(R[k]).txt.toLowerCase().replace(/^./,c=>c.toUpperCase())}.</b> Until that's fixed, the result assumes you borrow the shortfall.<button data-go="${k}">See why</button>`)); });
+  const sa=document.getElementById('s-alerts'); sa.innerHTML=al.join(''); sa.style.display=al.length?'flex':'none'; sa.style.flexDirection='column'; sa.style.gap='8px';
+  sa.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>setTab(b.dataset.go));
+  // cards
+  const allNW=ks.flatMap(k=>R[k].all.map(s=>B(p,s.nw,s.m))), lo=Math.min(...allNW), hi=Math.max(...allNW);
+  const card = (k, rows) => { const st=liqStatus(R[k]), d=endNW(k)-base;
+    return `<div class="card sc" style="--acc:var(${COL[k]})" data-go="${k}" tabindex="0" role="button" aria-label="Open ${N[k]}"><div class="sc-h"><span class="nm"><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</span><span class="status ${st.cls}">${st.txt}</span></div>
+    <div><div class="cap">Net worth, end of ${E}</div><div class="big">${M$(endNW(k))}</div><div style="margin-top:8px">${k==='rent'?chip('Baseline'):dchip(d)+` <span style="font-size:12px;color:var(--muted)">${VS(p)}</span>`}</div></div>
+    ${spark(R[k].all.filter((s,i)=>i%3===0).map(s=>B(p,s.nw,s.m)),lo,hi,css(COL[k]))}
+    <dl>${rows.map(r=>`<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('')}</dl></div>`; };
+  const cum = k => R[k].months.reduce((a,x)=>a+x.saved/dfl(p,x.m-1),0);
+  const rf=R.rent.first, bf=R.buy.first;
+  const inv = f => F$(f.bdd+f.contrib)+'/mo', left = f => (f.bankNet<0?'<span style="color:var(--neg)">':'<span>')+F$(f.bankNet)+'/mo</span>';
+  const endInv = k => M$(B(p,R[k].end.brok+R[k].end.retire,R[k].end.m));
+  document.getElementById('s-cards').innerHTML =
+    card('rent',[['Housing, 2027',F$(rf.housing)+'/mo'],['Invested, 2027',inv(rf)],['Left in bank, 2027',left(rf)],[`Investments, end of ${E}`,endInv('rent')]]) +
+    card('buy',[['Housing, 2027',F$(bf.housing)+'/mo'],['Invested, 2027',inv(bf)],['Left in bank, 2027',left(bf)],[`Investments, end of ${E}`,endInv('buy')]]) +
+    card('van',[['Burn on the road',F$(A.vanBurn)+'/mo'],['Invested on the road','$0/mo'],['Trip out of pocket',M$(A.vanOOP)],[`Investments, end of ${E}`,endInv('van')]]);
+  document.querySelectorAll('#s-cards [data-go]').forEach(c=>{ c.onclick=()=>setTab(c.dataset.go); c.onkeydown=e=>{ if(e.key==='Enter') setTab(c.dataset.go); }; });
+  // NW chart
+  document.getElementById('s-lg').innerHTML = ks.map(k=>`<span><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</span>`).join('');
+  document.getElementById('s-nw-sub').textContent = REAL?"Today's dollars":"Future dollars";
+  const o=baseOpts(START_YEAR, START_YEAR+H, H>12?2:1); o.layout.padding.right=64;
+  o.plugins.roadBand={from:START_YEAR,to:START_YEAR+R.van.roadM/12,color:css('--band'),text:css('--van')};
+  o.plugins.endLabels={on:true,fmt:v=>M$(v)};
+  chart('c-s-nw',{type:'line',data:{datasets:ks.map(k=>lineDS(N[k],css(COL[k]),R[k].all.map(s=>({x:START_YEAR+s.m/12,y:B(p,s.nw,s.m)})),
+    k===top?{fill:'origin',backgroundColor:grad(css(COL[k]),.14)}:{}))},options:o});
+  // range
+  const rng = ks.map(k=>({k, lo:B(p,A.D[k].end.nw,A.D[k].end.m), base:endNW(k), hi:B(p,A.U[k].end.nw,A.U[k].end.m)}));
+  const mn=Math.min(...rng.map(r=>r.lo)), mx=Math.max(...rng.map(r=>r.hi)), pad=(mx-mn||1)*0.04, L=mn-pad, Hh=mx+pad, X=v=>((v-L)/(Hh-L)*100).toFixed(2);
+  document.getElementById('s-ff-sub').textContent = `Net worth, end of ${E}`;
+  document.getElementById('s-ff').innerHTML = rng.map(r=>`<div><div class="ff-l"><b><i class="sq" style="background:var(${COL[r.k]})"></i>${N[r.k]}</b><span class="num">${M$(r.base)}</span></div>
+     <div class="ff-track"><div class="ff-bar" style="left:${X(r.lo)}%;width:${(X(r.hi)-X(r.lo)).toFixed(2)}%;background:linear-gradient(90deg,${hexA(css(COL[r.k]),.35)},${css(COL[r.k])})"></div><div class="ff-mark" style="left:calc(${X(r.base)}% - 2px)"></div></div>
+     <div class="ff-ends num"><span>Downside ${M$(r.lo)}</span><span>Upside ${M$(r.hi)}</span></div></div>`).join('') +
+     `<div class="ff-note">Bar runs from the downside to the upside case (defined under Assumptions → How the model works). The tick is your inputs.</div>`;
+  // comparison table
+  const yv = (k,y) => { const yr=R[k].years[Math.min(y,R[k].years.length)-1]; return B(p,yr.nw,yr.m); };
+  const y5=Math.min(5,H);
+  const cumSaved = k => R[k].months.reduce((a,x)=>a+x.saved/dfl(p,x.m-1),0);
+  const rows = [
+    ['sec','Net worth'],
+    [`End of ${START_YEAR+y5-1}`, k=>M$(yv(k,y5))],
+    [`End of ${E}`, k=>M$(endNW(k)), ()=> 'strong'],
+    [VS(p).replace('vs.','Vs.'), k=>k==='rent'?'–':S$(endNW(k)-base), k=>k==='rent'?'':(endNW(k)-base>=0?'pos':'neg')],
+    ['Downside case', k=>M$(rng.find(r=>r.k===k).lo)],
+    ['Upside case', k=>M$(rng.find(r=>r.k===k).hi)],
+    ['sec','Liquidity'],
+    ['Cash + brokerage at the end', k=>M$(B(p,R[k].end.liq,R[k].end.m))],
+    ['Lowest point', k=>{const ml=R[k].minLiq, fn=R[k].firstNeg; return fn ? liqStatus(R[k]).txt : `${M$(B(p,ml.liq,ml.m))} · ${monEnd(ml.m)}`;}, k=>R[k].firstNeg?'neg':''],
+    ['sec','Monthly cash flow, 2027'],
+    ['Take-home (hits bank)', k=>F$(R[k].first.bank+R[k].first.taxBen+R[k].first.side)],
+    ['Housing', k=>R[k].first.onRoad?'–':F$(R[k].first.housing)],
+    ['Left in bank (burned)', k=>F$(R[k].first.bankNet), k=>R[k].first.bankNet<0?'neg':''],
+    ['Brokerage deposits', k=>F$(R[k].first.bdd)],
+    ['Retirement contributions', k=>F$(R[k].first.contrib)],
+    ['sec','Investments, end of '+E],
+    ['Brokerage', k=>M$(B(p,R[k].end.brok,R[k].end.m)), k=>R[k].end.brok<0?'neg':''],
+    ['Retirement', k=>M$(B(p,R[k].end.retire,R[k].end.m))],
+    ['Cash', k=>M$(B(p,R[k].end.cash,R[k].end.m))],
+    ['sec',`${H}-year totals`],
+    ['Total saved (burned)', k=>M$(cumSaved(k)), k=>cumSaved(k)<0?'neg':''],
+    ['Total housing paid', k=>M$(R[k].months.reduce((a,x)=>a+x.housing/dfl(p,x.m-1),0))],
+    ['Retirement contributions', k=>M$(R[k].months.reduce((a,x)=>a+x.contrib/dfl(p,x.m-1),0))],
+  ];
+  document.getElementById('s-cmp').innerHTML = `<thead><tr><th></th>${ks.map(k=>`<th><i class="sq" style="background:var(${COL[k]});margin-right:6px;vertical-align:-1px"></i>${N[k]}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map(r=> r[0]==='sec' ? `<tr class="sec"><td colspan="4">${r[1]}</td></tr>` : `<tr><td>${r[0]}</td>${ks.map(k=>`<td class="${r[2]?r[2](k):''}">${r[1](k)}</td>`).join('')}</tr>`).join('') + '</tbody>';
+  renderInvestments();
+  renderAnalysis();
+}
+let ACC = ['brok','retire','both'].includes(store.get('homeOrRoad.acc')) ? store.get('homeOrRoad.acc') : 'brok';
+function renderInvestments(){
+  const p=A.p, R=A.R, N=NAME(p), H=R.rent.H, E=START_YEAR+H-1, ks=['rent','buy','van'];
+  document.querySelectorAll('#s-inv-tabs button').forEach(b=>{ b.setAttribute('aria-pressed',b.dataset.acc===ACC); b.onclick=()=>{ ACC=b.dataset.acc; store.set('homeOrRoad.acc',ACC); renderInvestments(); }; });
+  const val = s => ACC==='brok'?s.brok:ACC==='retire'?s.retire:s.brok+s.retire;
+  const accName = ACC==='brok'?'Brokerage':ACC==='retire'?'Retirement':'Brokerage + retirement';
+  document.getElementById('s-inv-sub').textContent = `${accName} balance by path, ${REAL?"today's":'future'} dollars`;
+  document.getElementById('s-inv-lg').innerHTML = ks.map(k=>`<span><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</span>`).join('');
+  const o=baseOpts(START_YEAR, START_YEAR+H, H>12?2:1); o.layout.padding.right=64;
+  o.plugins.roadBand={from:START_YEAR,to:START_YEAR+R.van.roadM/12,color:css('--band'),text:css('--van')};
+  o.plugins.endLabels={on:true,fmt:v=>M$(v)};
+  chart('c-s-inv',{type:'line',data:{datasets:ks.map(k=>lineDS(N[k],css(COL[k]),R[k].all.map(s=>({x:START_YEAR+s.m/12,y:B(p,val(s),s.m)}))))},options:o});
+  const fl = (k,f) => R[k].months.reduce((a,x)=>a+f(x)/dfl(p,x.m-1),0);
+  const br = ks.map(k=>{ const r=R[k], sB=p.brok, eB=B(p,r.end.brok,r.end.m), dep=fl(k,x=>x.bdd), sw=fl(k,x=>x.sweep), wd=r.draw0+fl(k,x=>x.brokDraw);
+    const sR=p.retire, eR=B(p,r.end.retire,r.end.m), con=fl(k,x=>x.contrib);
+    return {sB,dep,sw,wd,gB:eB-sB-dep-sw+wd,eB,sR,con,gR:eR-sR-con,eR}; });
+  const T = v => { const r=Math.round(v/1000); return r===0?'–':(v<0?'−$':'$')+Math.abs(r).toLocaleString('en-US')+'K'; };
+  const row = (l,f,cls) => `<tr class="${cls||''}"><td>${l}</td>${br.map(b=>{ const v=f(b); return `<td class="${v<-500&&cls!=='eq'?'neg':''}">${T(v)}</td>`; }).join('')}</tr>`;
+  const rowsB = ACC!=='retire' ? `<tr class="sec"><td colspan="4">Brokerage</td></tr>`+row('Today',b=>b.sB)+row('+ Direct deposits',b=>b.dep)+row('+ Invested from checking',b=>b.sw)+row('− Withdrawals',b=>-b.wd)+row('+ Market growth',b=>b.gB)+row(`= End of ${E}`,b=>b.eB,'eq') : '';
+  const rowsR = ACC!=='brok' ? `<tr class="sec"><td colspan="4">Retirement</td></tr>`+row('Today',b=>b.sR)+row('+ Contributions',b=>b.con)+row('+ Market growth',b=>b.gR)+row(`= End of ${E}`,b=>b.eR,'eq') : '';
+  document.getElementById('s-bridge').innerHTML = `<thead><tr><th>${REAL?"Today's $":'Future $'}</th>${ks.map(k=>`<th><i class="sq" style="background:var(${COL[k]});margin-right:5px;vertical-align:-1px"></i>${N[k]}</th>`).join('')}</tr></thead><tbody>${rowsB}${rowsR}</tbody>`;
+  const parts=[['cash','Cash','--c-cash'],['brok','Brokerage','--c-brok'],['retire','Retirement','--c-ret'],['equity','Home equity','--c-eq'],['van','Van','--c-van']];
+  document.getElementById('s-comp-sub').textContent = `End of ${E}`;
+  document.getElementById('s-comp').innerHTML = ks.map(k=>{ const e=R[k].end, vals=parts.map(([key])=>Math.max(0,B(p,key==='van'?e.van-e.vanBal:e[key],e.m))), tot=vals.reduce((a,x)=>a+x,0)||1;
+    return `<div class="comp-row"><span class="who"><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</span><div class="cbar">${parts.map(([key,l,c],i)=>vals[i]>0?`<div style="flex:${vals[i]/tot} 1 0;background:var(${c});${c==='--c-cash'?'color:#1b2440':''}" title="${l}: ${M$(vals[i])}">${vals[i]/tot>0.11?M$(vals[i]):''}</div>`:'').join('')}</div><span class="tot">${M$(B(p,e.nw,e.m))}</span></div>`; }).join('');
+  document.getElementById('s-comp-lg').innerHTML = parts.map(([k,l,c])=>`<span><i class="sq" style="background:var(${c})"></i>${l}</span>`).join('') + (ks.some(k=>R[k].end.brok<0)?'<span style="color:var(--neg)">A negative brokerage balance means borrowing; it is netted out of the total.</span>':'');
+}
+
+/* =================== analysis =================== */
+let AI=null, AI_KEY=null, AI_BUSY=false, AI_ERR='', SAMPLE=null, AI_CTL=null;
+function facts(){
+  const p=A.p, R=A.R, H=R.rent.H, T=(v,m)=>TODAY(p,v,m), N=NAME(p);
+  const nw = k => T(R[k].end.nw,R[k].end.m);
+  const cum = k => R[k].months.reduce((a,x)=>a+TODAY(p,x.saved,x.m-1),0);
+  const cashInfo = k => { const ml=R[k].minLiq, fn=R[k].firstNeg; return {lowest:Math.round(T(ml.liq,ml.m)), lowestWhen:monEnd(ml.m), problem: fn ? liqStatus(R[k]).txt : 'none'}; };
+  const vc=vanCost(A), b=R.buy, bf=b.first, rf=R.rent.first;
+  const exits=[1,2,3,5,7].filter(y=>y<H).map(y=>({year:y, vsRentPath:Math.round(TODAY(p,b.years[y-1].nw-R.rent.years[y-1].nw,y*12))}));
+  return {
+    dollars:"today's dollars", horizonYears:H, endYear:START_YEAR+H-1,
+    household:{liquidToday:p.cash+p.brok, retirementToday:p.retire, grossIncome:p.gross, bankDepositsMo:p.bank, brokerageDepositsMo:p.bdd, retirementContribYr:p.contrib, rentMo:p.rent, otherSpendMo:livingOf(p)},
+    rentPath:{name:N.rent, buysHouseAfterYears:p.rentBuyYears||null, netWorthEnd:Math.round(nw('rent')), investedPerMo2027:Math.round(rf.bdd+rf.contrib), leftInBankPerMo2027:Math.round(rf.bankNet), totalSaved:Math.round(cum('rent')), brokerageEnd:Math.round(T(R.rent.end.brok,R.rent.end.m)), retirementEnd:Math.round(T(R.rent.end.retire,R.rent.end.m)), rentMo2027:Math.round(rf.rent), cash:cashInfo('rent'),
+          downsideNetWorth:Math.round(T(A.D.rent.end.nw,A.D.rent.end.m)), upsideNetWorth:Math.round(T(A.U.rent.end.nw,A.U.rent.end.m))},
+    buyNow:{price:p.price, downPct:p.down, rate:p.rate, cashToClose:Math.round(b.cashAtClose), liquidAfterClose:Math.round(b.start.liq), allInHousingMo2027:Math.round(bf.housing), housingVsRentMo:Math.round(bf.housing-p.rent),
+         mortgageTaxSavingsMo:Math.round(bf.taxBen), investedPerMo2027:Math.round(bf.bdd+bf.contrib), leftInBankPerMo2027:Math.round(bf.bankNet), brokerageEnd:Math.round(T(b.end.brok,b.end.m)), retirementEnd:Math.round(T(b.end.retire,b.end.m)), netWorthEnd:Math.round(nw('buy')), vsRentPathEnd:Math.round(nw('buy')-nw('rent')),
+         breakEvenMonth:A.be?monEnd(A.be):'not within horizon', breakEvenHomeGrowthPct:isFinite(A.beApp)?Math.round(A.beApp*10)/10:String(A.beApp), cash:cashInfo('buy'), sellEarlyVsRentPath:exits,
+         downsideNetWorth:Math.round(T(A.D.buy.end.nw,A.D.buy.end.m)), upsideNetWorth:Math.round(T(A.U.buy.end.nw,A.U.buy.end.m))},
+    van:{name:N.van, monthsOnRoad:R.van.roadM, afterRoad:p.after, vanPrice:p.vanPrice, vanFinancedPct:p.vanFin, burnMo:Math.round(A.vanBurn), outOfPocketTrip:Math.round(A.vanOOP), monthsCoveredBeforeCashRunsOut:A.runway===Infinity?'whole trip':A.runway,
+         returnPayPct:p.returnPct, jobSearchMonths:p.gap, brokerageEnd:Math.round(T(R.van.end.brok,R.van.end.m)), retirementEnd:Math.round(T(R.van.end.retire,R.van.end.m)), netWorthEnd:Math.round(nw('van')), vsRentPathEnd:Math.round(nw('van')-nw('rent')), costPerMonthAway:Math.round(vc.total/R.van.roadM), cash:cashInfo('van'),
+         gapBreakdown:Object.fromEntries(vc.parts.map(x=>[x[0],Math.round(x[1])])),
+         downsideNetWorth:Math.round(T(A.D.van.end.nw,A.D.van.end.m)), upsideNetWorth:Math.round(T(A.U.van.end.nw,A.U.van.end.m))},
+    stressCases:'Downside: returns -3 pts, flat home prices, rent growth +2 pts, road costs +20%, pay back 15 pts lower after 6 extra months of search. Upside: returns +1.5 pts, home growth +1.5 pts, rent growth -1 pt, road costs -10%, pay back 10 pts higher.'
+  };
+}
+function builtIn(){
+  const F=facts(), r=F.rentPath, b=F.buyNow, v=F.van, H=F.horizonYears, E=F.endYear;
+  const best=[[r.name,r.netWorthEnd],['Buying now',b.netWorthEnd],[v.name,v.netWorthEnd]].sort((x,y)=>y[1]-x[1]);
+  const tc=Object.entries(v.gapBreakdown).sort((a,c)=>c[1]-a[1]);
+  let bl=`${best[0][0]} builds the most on these numbers: ${M$(best[0][1])} by the end of ${E} in today's dollars. Buying now ends ${M$(Math.abs(b.vsRentPathEnd))} ${b.vsRentPathEnd>=0?'ahead of':'behind'} the rent path${typeof b.breakEvenHomeGrowthPct==='number'?` and needs about ${b.breakEvenHomeGrowthPct}% a year of home value growth to break even`:''}. ${v.name} costs ${M$(Math.abs(v.vsRentPathEnd))}, about ${M$(v.costPerMonthAway)} per month away, and most of that is savings you stop making rather than money you spend.`;
+  if(v.cash.problem!=='none') bl+=` As entered, the van plan has a cash problem (${v.cash.problem.toLowerCase()}).`;
+  if(b.cash.problem!=='none') bl+=` Buying now has a cash problem (${b.cash.problem.toLowerCase()}), so its result assumes you borrow the shortfall.`;
+  return {source:'built-in', bottomLine:bl, scenarios:{
+    rent:{verdict:`${M$(r.netWorthEnd)} by ${E}.`,
+      meaning:`You invest ${F$(r.investedPerMo2027)}/mo (brokerage + retirement) and keep ${F$(r.leftInBankPerMo2027)}/mo in the bank, ending with ${M$(r.brokerageEnd)} in brokerage and ${M$(r.retirementEnd)} in retirement.${r.buysHouseAfterYears?` You buy after ${yrs(r.buysHouseAfterYears)}, with a bigger cash cushion than buying now.`:' Everything stays liquid, so buying or the van trip remain open.'}`,
+      downside:`Lower returns and faster rent growth take it to ${M$(r.downsideNetWorth)}. The upside case is ${M$(r.upsideNetWorth)}.`,
+      watch:['Assumes every surplus dollar is invested','Rent resets are out of your control','Doesn’t fix the job question; it keeps options open']},
+    buy:{verdict:`${M$(b.netWorthEnd)} by ${E}, ${S$(b.vsRentPathEnd)} vs. the rent path.`,
+      meaning:`Closing takes ${M$(b.cashToClose)} and leaves ${M$(b.liquidAfterClose)}. Housing runs ${F$(b.allInHousingMo2027)}/mo, ${F$(b.housingVsRentMo)} over rent before ${F$(b.mortgageTaxSavingsMo)}/mo of tax savings. Investments end at ${M$(b.brokerageEnd)} brokerage and ${M$(b.retirementEnd)} retirement.${b.leftInBankPerMo2027<0?` Checking runs ${F$(-b.leftInBankPerMo2027)}/mo short, which comes out of brokerage.`:''}`,
+      downside:`Flat home prices and lower returns: ${M$(b.downsideNetWorth)}.${b.sellEarlyVsRentPath.length>2?` Selling after 3 years leaves you ${M$(Math.abs(b.sellEarlyVsRentPath[2].vsRentPath))} ${b.sellEarlyVsRentPath[2].vsRentPath>=0?'ahead':'behind'}.`:''}`,
+      watch:['Ties you to Denver and your current jobs','Expensive to exit before year 5–7',b.cash.lowest<30000?'Thin cash cushion after closing':'A rate drop and refinance would help']},
+    van:{verdict:`${M$(v.netWorthEnd)} by ${E}, ${S$(v.vsRentPathEnd)} vs. the rent path.`,
+      meaning:`You burn ${F$(v.burnMo)}/mo for ${v.monthsOnRoad} months, and the trip costs ${M$(v.outOfPocketTrip)} out of pocket. Investments end at ${M$(v.brokerageEnd)} brokerage and ${M$(v.retirementEnd)} retirement. The biggest parts of the gap: ${tc.slice(0,2).map(x=>x[0].toLowerCase()+' ('+M$(x[1])+')').join(' and ')}.`,
+      downside:`Pay back at ${v.returnPayPct-15}% after a ${v.jobSearchMonths+6}-month search, with road costs 20% higher: ${M$(v.downsideNetWorth)}.`,
+      watch:['Pay when you come back is the swing factor','Retirement contributions and the match stop','Get a real ACA quote']}},
+    nextSteps:['Enter Megan’s numbers so the results reflect both of you','Get a mortgage rate quote and an ACA quote, the two biggest unknowns','Decide how much cash you want left when you come back from the road']};
+}
+function renderAnalysis(){
+  const el=document.getElementById('s-analysis'), key=JSON.stringify(P), stale=AI&&AI_KEY!==key, data=(AI&&!stale)?AI:builtIn(), N=NAME(A.p);
+  const col=k=>{ const s=data.scenarios[k]||{}; return `<div class="an-col"><h3><i class="sq" style="background:var(${COL[k]})"></i>${N[k]}</h3>
+    ${s.verdict?`<div class="verdict">${esc(s.verdict)}</div>`:''}
+    ${[['What it means',s.meaning],['Downside',s.downside],['Cash',s.cash]].filter(x=>x[1]).map(([k2,v])=>`<div class="an-sec"><div class="k">${k2}</div><p>${esc(v)}</p></div>`).join('')}
+    ${Array.isArray(s.watch)&&s.watch.length?`<div class="an-sec"><div class="k">Watch for</div><ul>${s.watch.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>`:''}</div>`; };
+  el.innerHTML = `<div class="an-top"><div><h2>Analysis</h2><div class="src">${data.source==='claude'?'Written by Claude from your current numbers':stale?'Your numbers changed since Claude wrote this; showing the built-in read':'Built-in read of your current numbers · today’s dollars'}</div></div>
+    <div style="display:flex;gap:8px">${AI_BUSY?`<button class="btn" id="ai-stop">Stop</button>`:''}<button class="btn pri" id="ai-go" hidden ${AI_BUSY?'disabled':''}>${AI_BUSY?'Writing…':(data.source==='claude'?'Rewrite with Claude':'Write analysis with Claude')}</button></div></div>
+    ${AI_ERR?`<div class="an-err">${esc(AI_ERR)}</div>`:''}
+    <div class="an-bl">${esc(data.bottomLine||'')}</div>
+    <div class="an-cols">${col('rent')}${col('buy')}${col('van')}</div>
+    ${Array.isArray(data.nextSteps)&&data.nextSteps.length?`<div class="an-next"><b>Next steps</b><ol>${data.nextSteps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol></div>`:''}`;
+  const go=document.getElementById('ai-go'); if(SAMPLE&&go){ go.hidden=false; go.onclick=writeAI; }
+  const st=document.getElementById('ai-stop'); if(st) st.onclick=()=>AI_CTL&&AI_CTL.abort();
+}
+(async()=>{ try{ if(window.claude && typeof window.claude.use==='function'){ SAMPLE=await window.claude.use('sample'); if(SAMPLE){ try{ const lim=await SAMPLE.limits(); SAMPLE_IMG=!!(lim&&lim.images); }catch(e){ SAMPLE_IMG=false; } } if(SAMPLE&&A&&(TAB==='summary'||TAB==='homes')) renderTab(); } }catch(e){ SAMPLE=null; } })();
+async function writeAI(){
+  if(!SAMPLE||AI_BUSY) return;
+  AI_BUSY=true; AI_ERR=''; AI_CTL=new AbortController(); renderAnalysis();
+  const key=JSON.stringify(P);
+  const prompt=`You are a sharp personal-finance analyst writing for Will (29) and Megan (34), a married couple in Denver deciding what to do when their lease ends Dec 31, 2026: rent (optionally buying later), buy a house now, or quit their corporate jobs for van life. Will works in real estate acquisitions and is fluent in finance, so be direct and numerate. No filler, no generic advice.
+
+Model outputs (today's dollars). Use ONLY these numbers; don't invent figures. Round sensibly ($1.2M, $340K, $4,150/mo).
+
+${JSON.stringify(facts())}
+
+Reply with ONLY a JSON object:
+{"bottomLine":"3-4 sentences: which path builds the most wealth, the real trade-off, the single biggest risk",
+ "scenarios":{"rent":{"verdict":"one line","meaning":"2 sentences, including where their brokerage and retirement accounts end up","downside":"1-2 sentences","cash":"1 sentence on savings/burn and liquidity","watch":["3 short watch-outs"]},"buy":{same keys},"van":{same keys}},
+ "nextSteps":["3 concrete next steps"]}`;
+  try{
+    const res=await SAMPLE.json(prompt,{signal:AI_CTL.signal,modelTier:'default',cache:false});
+    if(res&&res.scenarios&&res.bottomLine){ AI=Object.assign(res,{source:'claude'}); AI_KEY=key; } else AI_ERR='Claude’s answer came back in an unexpected shape. Try again.';
+  }catch(e){
+    const c=e&&e.code;
+    if(c==='cancelled') AI_ERR='';
+    else if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(c)){ SAMPLE=null; AI_ERR=''; }
+    else if(c==='rate_limited') AI_ERR='Claude is rate-limited right now. Try again in a few minutes.';
+    else AI_ERR='Couldn’t get an analysis from Claude this time; the built-in read is shown.';
+  }finally{ AI_BUSY=false; AI_CTL=null; if(TAB==='summary') renderAnalysis(); }
+}
+
+/* =================== annual tables =================== */
+function annualTable(el, run, cols){
+  const p=run.p, d=y=>REAL?Math.pow(1+p.infl/100,y+0.5):1, e=y=>dfl(p,run.years[y].m);
+  el.innerHTML = `<thead><tr><th>Year</th>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead><tbody>`+
+    run.years.map((yr,i)=>`<tr class="${yr.onRoad?'band':''}"><td>${yr.year}</td>${cols.map(c=>{ const v=c[1](yr)/(c[2]==='bal'?e(i):d(i)); return `<td class="${v<-0.5?'neg':''}${c[3]?' strong':''}">${T$(v)}</td>`; }).join('')}</tr>`).join('')+'</tbody>';
+}
+
+/* =================== rent =================== */
+function renderRent(){
+  const p=A.p, r=A.R.rent, f=r.first, H=r.H, E=START_YEAR+H-1, N=NAME(p), later=p.rentBuyYears>0;
+  const cum=r.months.reduce((a,x)=>a+x.saved/dfl(p,x.m-1),0), rentPaid=r.months.reduce((a,x)=>a+x.rent/dfl(p,x.m-1),0);
+  const invM=f.bdd+f.contrib, rate=(f.bank+invM)>0?(invM+Math.max(0,f.bankNet))/(f.bank+invM)*100:0, nwE=B(p,r.end.nw,r.end.m), buyE=B(p,A.R.buy.end.nw,A.R.buy.end.m);
+  document.getElementById('r-eyebrow').textContent = later ? `${N.rent} · the baseline` : 'Rent · the baseline';
+  // control
+  const sel=document.getElementById('r-then');
+  sel.innerHTML = `<option value="0">Keep renting</option>`+[1,2,3,4,5,6,7].filter(y=>y<H).map(y=>`<option value="${y}">Buy in ${START_YEAR+y} (after ${yrs(y)})</option>`).join('');
+  sel.value=String(Math.round(p.rentBuyYears)||0); sel.onchange=()=>{ P.rentBuyYears=+sel.value; commit(); recompute(); };
+  if(!later){
+    document.getElementById('r-thesis').innerHTML = `Renting puts ${hl('rent',F$(invM)+'/mo')} into brokerage and retirement and builds ${hl('rent',M$(nwE))} by ${E}, all of it liquid.`;
+    document.getElementById('r-lede').textContent = `The flexible path. You don't build home equity, but you don't pay transaction costs or tie up cash either. Buying now ends ${M$(Math.abs(buyE-nwE))} ${buyE>=nwE?'ahead of':'behind'} this.`;
+  } else {
+    const bm=Math.round(p.rentBuyYears*12), atBuy=r.all[bm];
+    document.getElementById('r-thesis').innerHTML = `Rent until ${START_YEAR+p.rentBuyYears}, then buy: ${hl('rent',M$(nwE))} by ${E}, ${signHl(nwE-buyE,M$(Math.abs(nwE-buyE)))} ${nwE>=buyE?'ahead of':'behind'} buying now.`;
+    document.getElementById('r-lede').textContent = `You bank ${yrs(p.rentBuyYears)} of savings first, then buy the same house at ${M$(r.price0)} (grown ${p.app}%/yr). You'd have ${M$(B(p,atBuy.liq,atBuy.m))} in cash + brokerage when you buy, against ${M$(r.cashAtClose)} needed at closing.`;
+  }
+  const st=liqStatus(r);
+  document.getElementById('r-alerts').innerHTML = r.firstNeg ? alertHTML('bad',`<b>${st.txt}.</b> Closing needs ${F$(r.cashAtClose)} and cash + brokerage runs short. Buy later or lower the price on the Buy inputs.`) : '';
+  kpis(document.getElementById('r-kpis'),[
+    ['Invested per month, 2027',F$(invM),chip('+'+F$(Math.max(0,f.bankNet))+'/mo left in bank','nt')],
+    [`Net worth, end of ${E}`,M$(nwE),`${chip('Downside '+M$(B(p,A.D.rent.end.nw,A.D.rent.end.m)),'nt')}`],
+    later?['Home purchase',mon(Math.round(p.rentBuyYears*12)),`${M$(r.price0)} · ${M$(r.cashAtClose)} to close`]:[`Rent paid over ${H} yrs`,M$(rentPaid),`${F$(p.rent)}/mo today`],
+    ['Investments at the end',M$(B(p,r.end.brok+r.end.retire,r.end.m)),chip('Brokerage '+M$(B(p,r.end.brok,r.end.m))+' · retirement '+M$(B(p,r.end.retire,r.end.m)),'nt')],
+  ]);
+  document.getElementById('r-lg').innerHTML = stackChart('c-r-comp', r, later?[COMP.retire,COMP.brok,COMP.cash,COMP.equity]:[COMP.retire,COMP.brok,COMP.cash]);
+  const lastRent=r.months.filter(x=>x.rent>0).slice(-1)[0], d1=B(p,run('rent',variant(p,{rentG:p.rentG+1})).end.nw-r.end.nw,r.end.m);
+  document.getElementById('r-ins').innerHTML = `
+    <p><b>Savings engine.</b> ${F$(f.bdd)}/mo goes to brokerage and ${F$(f.contrib)}/mo to retirement, and checking keeps another ${F$(Math.max(0,f.bankNet))}/mo after bills. That's ${pct(rate)} of everything you earn after tax.</p>
+    <p><b>Returns do the work.</b> Most of this net worth is invested. At ${p.ret-3}% instead of ${p.ret}%, you end at ${M$(B(p,A.D.rent.end.nw,A.D.rent.end.m))}.</p>
+    <p><b>Rent drift.</b> ${lastRent?`Rent reaches ${F$(lastRent.rent)}/mo by ${later?START_YEAR+p.rentBuyYears-1:E} in future dollars. `:''}Each extra point of rent growth costs about ${M$(Math.abs(d1))}.</p>
+    <p><b>Option value.</b> Liquidity means you can still buy or take the trip later. ${later?'':'Try "Buy in 2029" above to see the rent-first version.'}</p>`;
+  document.getElementById('r-tsum').textContent = `${REAL?"Today's":'Future'} dollars, year by year · take-home, where it goes, and every account balance`;
+  annualTable(document.getElementById('r-table'), r, [
+    ['Take-home',y=>y.income],['Housing',y=>y.housing],['Cars, ins., other',y=>y.living],['Left in bank',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
+    ['Cash',y=>y.cash,'bal'],['Brokerage',y=>y.brok,'bal'],['Retirement',y=>y.retire,'bal'],...(later?[['Home equity',y=>y.equity,'bal']]:[]),['Net worth',y=>y.nw,'bal',1]]);
+}
+
+/* =================== buy =================== */
+function renderBuy(){
+  const p=A.p, b=A.R.buy, r=A.R.rent, f=b.first, H=b.H, E=START_YEAR+H-1, N=NAME(p);
+  const nwB=B(p,b.end.nw,b.end.m), d=nwB-B(p,r.end.nw,r.end.m), extra=f.housing-f.taxBen-p.rent;
+  const ah=HOUSES.find(h=>h.id===p.activeHome && +h.price===+p.price);
+  document.getElementById('b-eyebrow').textContent = `Buy now · ${ah?ah.address:'closing Jan 2027'} · ${F$(p.price)} at ${p.rate}%`;
+  const beTxt = !isFinite(A.beApp) ? (A.beApp<0?'wins at any realistic appreciation':'doesn’t win at any realistic appreciation') : `needs ${hl('buy',(Math.round(A.beApp*10)/10)+'%')} a year of home value growth to break even`;
+  document.getElementById('b-thesis').innerHTML = `Owning costs ${hl('buy',F$(extra)+'/mo')} more than renting and ends ${signHl(d,M$(Math.abs(d)))} ${d>=0?'ahead of':'behind'} the rent path by ${E}. It ${beTxt}.`;
+  document.getElementById('b-lede').textContent = `You're assuming ${p.app}% a year, and brokerage deposits drop to ${p.bddOwn}% (${F$(f.bdd)}/mo) with the rest going to checking. ${d<0?'The gap is mostly transaction costs and interest, which the house has to out-earn.':'Appreciation and forced savings through principal paydown carry it.'}`;
+  // alert
+  const al=document.getElementById('b-alerts');
+  if(b.firstNeg){
+    const liq0=p.cash+p.brok, gapClose=b.cashAtClose-liq0, why=[];
+    if(gapClose>0) why.push(`Closing plus renovation needs ${F$(b.cashAtClose)} and you have ${F$(liq0)} in cash + brokerage, ${F$(gapClose)} short.`);
+    else why.push(`Closing plus renovation takes ${F$(b.cashAtClose)} of your ${F$(liq0)}.`);
+    if(f.saved<0) why.push(`After that, housing plus expenses exceed what comes in by ${F$(-f.saved)}/mo, so cash never recovers.`);
+    al.innerHTML = alertHTML('bad',`<b>This purchase doesn't work with your cash as entered.</b> ${why.join(' ')} Lower the price or renovation, put less down, or try rent-then-buy on the Rent tab. After that, the model assumes you borrow the shortfall.`);
+  } else al.innerHTML = b.start.liq < 6*(f.housing+f.living) ? alertHTML('warn',`<b>Thin cushion.</b> You'd have ${F$(b.start.liq)} left after closing, less than six months of expenses (${F$(6*(f.housing+f.living))}).`) : '';
+  kpis(document.getElementById('b-kpis'),[
+    ['Cash to close + reno',M$(b.cashAtClose),`${chip((b.start.liq<0?'−':'')+M$(Math.abs(b.start.liq))+' left', b.start.liq<0?'dn':b.start.liq<6*(f.housing+f.living)?'wn':'nt')}`],
+    ['All-in housing, 2027',F$(f.housing)+'/mo',chip('+'+F$(f.housing-p.rent)+' vs. rent','nt')],
+    [`Net worth, end of ${E}`,M$(nwB),`${dchip(d)} ${VS(p)}`],
+    ['Break-even home growth',isFinite(A.beApp)?(Math.round(A.beApp*10)/10)+'%/yr':(A.beApp<0?'Always wins':'Never'),chip(`You assume ${p.app}%`,isFinite(A.beApp)&&p.app>=A.beApp?'up':'dn')],
+  ]);
+  const rows=[['Principal + interest',f.pi],['Property tax',f.pt],['Homeowners insurance',f.hins],['Maintenance reserve',f.maint]];
+  if(f.hoa>0) rows.push(['HOA',f.hoa]); if(f.util>0) rows.push(['Extra utilities',f.util]); if(f.pmi>0) rows.push(['PMI',f.pmi]);
+  const cr=rows.map(([l,v])=>[l,v,'var(--buy)']);
+  if(f.taxBen>0) cr.push(['Mortgage tax savings',-f.taxBen,'var(--pos)']);
+  cr.push(['Net cost of owning',f.housing-f.taxBen,'var(--buy)','total'],['Rent today',p.rent,'var(--rent)','total']);
+  hbars(document.getElementById('b-month'),cr,{fmt:v=>(v<0?'−':'')+F$(Math.abs(v))});
+  document.getElementById('b-lg1').innerHTML = `<span><i class="sq" style="background:var(--buy)"></i>Home value</span><span><i class="sq" style="background:var(--muted)"></i>Loan balance</span>`;
+  const o=baseOpts(START_YEAR,START_YEAR+H,H>12?2:1); o.scales.y.min=0;
+  chart('c-b-eq',{type:'line',data:{datasets:[
+    lineDS('Home value',css('--buy'),b.all.map(s=>({x:START_YEAR+s.m/12,y:B(p,s.home,s.m)})),{fill:'+1',backgroundColor:hexA(css('--buy'),.14)}),
+    lineDS('Loan balance',css('--muted'),b.all.map(s=>({x:START_YEAR+s.m/12,y:B(p,s.mort,s.m)})),{borderDash:[5,4],borderWidth:1.75})]},options:o});
+  // sensitivity
+  const mx=Math.max(1,...A.bSens.flat().map(Math.abs)), win=A.bSens.flat().filter(v=>v>=0).length;
+  document.getElementById('b-sens-sum').textContent = `Buying beats the rent path in ${win} of 25 combinations of appreciation and rate`;
+  document.getElementById('b-sens').innerHTML = `<thead><tr><th>Growth \\ Rate</th>${A.rateCols.map(c=>`<th>${+c.toFixed(3)}%</th>`).join('')}</tr></thead><tbody>`+
+    A.appRows.map((a,i)=>`<tr><td>${a}%</td>${A.rateCols.map((c,j)=>`<td class="${i===2&&j===2?'base':''}" style="${sensCell(A.bSens[i][j],mx)}">${S$(B(p,A.bSens[i][j],b.end.m))}</td>`).join('')}</tr>`).join('')+'</tbody>';
+  // early exit
+  const ex=[1,2,3,5,7,10,15,20].filter(y=>y<=H);
+  const exv=ex.map(y=>({y, yb:b.years[y-1], d:B(p,b.years[y-1].nw-r.years[y-1].nw,b.years[y-1].m)}));
+  const worst=exv.reduce((a,x)=>x.d<a.d?x:a,exv[0]);
+  document.getElementById('b-exit-sum').textContent = worst ? `Worst exit: year ${worst.y}, ${S$(worst.d)} ${VS(p)}` : '';
+  document.getElementById('b-exit').innerHTML = `<thead><tr><th>Sell at end of</th><th>Equity after sale</th><th>Net worth</th><th>${VS(p).replace('vs.','Vs.')}</th></tr></thead><tbody>`+
+    exv.map(x=>`<tr><td>Year ${x.y} · ${START_YEAR+x.y-1}</td><td>${T$(B(p,x.yb.equity,x.yb.m))}</td><td>${T$(B(p,x.yb.nw,x.yb.m))}</td><td class="${x.d<0?'neg':'pos'}">${S$(x.d)}</td></tr>`).join('')+'</tbody>';
+  const oc=ownCost(A);
+  document.getElementById('b-uc-sum').textContent = `${H}-year net cost of owning ${M$(oc.own)} vs. ${M$(oc.rent)} of rent, ${REAL?"today's":'future'} dollars`;
+  hbars(document.getElementById('b-uc'),[...oc.rows.map(([l,v])=>[l,v,v<0?'var(--pos)':'var(--buy)']),['Net cost of owning',oc.own,'var(--buy)','total'],['Rent you’d pay instead',oc.rent,'var(--rent)','total']],{fmt:v=>(v<0?'−':'')+M$(Math.abs(v))});
+  document.getElementById('b-lg2').innerHTML = stackChart('c-b-comp', b, [COMP.retire,COMP.brok,COMP.cash,COMP.equity]);
+  annualTable(document.getElementById('b-table'), b, [
+    ['Take-home',y=>y.income],['Mortgage P+I',y=>y.pi],['Other home costs',y=>y.housing-y.pi],['Cars, ins., other',y=>y.living],['Left in bank',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
+    ['Home value',y=>y.home,'bal'],['Loan',y=>y.mort,'bal'],['Equity',y=>y.equity,'bal'],['Cash',y=>y.cash,'bal'],['Brokerage',y=>y.brok,'bal'],['Retirement',y=>y.retire,'bal'],['Net worth',y=>y.nw,'bal',1]]);
+}
+
+/* =================== van =================== */
+function renderVan(){
+  const p=A.p, v=A.R.van, r=A.R.rent, H=v.H, E=START_YEAR+H-1, N=NAME(p), vc=vanCost(A);
+  const d=B(p,v.end.nw-r.end.nw,v.end.m), perMo=vc.total/v.roadM;
+  const saving=vc.parts.filter(x=>/Savings|retirement|pay|hunting/i.test(x[0])).reduce((a,x)=>a+x[1],0);
+  document.getElementById('v-eyebrow').textContent = `${N.van} · ${v.roadM} months on the road from Jan 2027`;
+  document.getElementById('v-thesis').innerHTML = `${yrs(p.roadYears).replace(/^./,c=>c.toUpperCase())} on the road costs ${hl('van',M$(Math.abs(vc.total)))} of ${E} net worth, about ${hl('van',M$(perMo)+' for every month away')}. ${saving>vc.total*0.5?'Most of it is savings you stop making, not money you spend.':'Most of it is what you spend on the road and the van.'}`;
+  document.getElementById('v-lede').textContent = `Then ${p.gap} months job hunting and back to work at ${p.returnPct}% of the pay you'd have had, with brokerage deposits at ${p.bddVan}% of before, then ${p.after==='buy'?'buy the house':'rent again'}. Road costs ${F$(roadBurn(p))}/mo against ${F$(p.rent+livingOf(p))}/mo of rent and expenses in Denver now.`;
+  // alert
+  const liq0=p.cash+p.brok, al=document.getElementById('v-alerts');
+  if(v.firstNeg){
+    const need=v.vanCashIn;
+    al.innerHTML = alertHTML('bad', v.firstNeg.m===0
+      ? `<b>The van costs more than your cash.</b> You have ${F$(liq0)} in cash + brokerage, and the van plus setup takes ${F$(need)} up front${p.vanFin>0?` after financing ${p.vanFin}%`:''}. Finance part of the van, pick a cheaper build, or save first (Assumptions → Van life).`
+      : `<b>Cash runs out ${monEnd(v.firstNeg.m)}</b>, ${A.runway<v.roadM?`${A.runway} months into a ${v.roadM}-month trip`:'during the job search'}. Shorten the trip, add side income, or finance more of the van.`);
+  } else al.innerHTML='';
+  const runTxt = A.runway===Infinity ? 'Whole trip' : (v.firstNeg.m===0 ? 'Not covered' : `${A.runway} of ${v.roadM} mo`);
+  kpis(document.getElementById('v-kpis'),[
+    ['Burn on the road',F$(A.vanBurn)+'/mo',chip(p.side>0?`after ${F$(p.side)}/mo side income`:'no income','nt')],
+    ['Savings cover',runTxt,A.runway===Infinity?chip('Low point '+M$(B(p,v.minLiq.liq,v.minLiq.m)),'up'):chip(v.firstNeg.m===0?'van exceeds cash':'cash runs out','dn'),A.runway===Infinity?'':'dn'],
+    ['Cost per month away',M$(perMo),chip("today's dollars",'nt')],
+    [`Net worth, end of ${E}`,M$(B(p,v.end.nw,v.end.m)),`${dchip(d)} ${VS(p)}`],
+  ]);
+  document.getElementById('v-wf-sub').textContent = `Gap ${VS(p)}, end of ${E}, today's dollars`;
+  hbars(document.getElementById('v-wf'), [...vc.parts.map(([l,x])=>[l,x,x<0?'var(--pos)':'var(--van)']),['Total gap',vc.total,'var(--neg)','total']],{fmt:x=>(x<0?'−':'')+M$(Math.abs(x))});
+  const until=Math.min(v.M, v.roadM+p.gap+18);
+  document.getElementById('v-lg1').innerHTML = `<span><i class="sq" style="background:var(--van)"></i>${N.van}</span><span><i class="sq" style="background:var(--rent)"></i>${N.rent}</span>`;
+  const o=baseOpts(START_YEAR, START_YEAR+until/12, until>36?1:0.5);
+  o.scales.x.ticks.callback=v2=>{const yr=Math.floor(v2+1e-6),mo=Math.round((v2-yr)*12);return mo===0?String(yr):new Date(yr,mo,1).toLocaleString('en-US',{month:'short'});};
+  o.plugins.roadBand={from:START_YEAR,to:START_YEAR+v.roadM/12,color:css('--band'),text:css('--van')};
+  chart('c-v-run',{type:'line',data:{datasets:[
+    lineDS(N.van,css('--van'),v.all.slice(0,until+1).map(s=>({x:START_YEAR+s.m/12,y:B(p,s.liq,s.m)})),{fill:'origin',backgroundColor:grad(css('--van'),.22)}),
+    lineDS(N.rent,css('--rent'),r.all.slice(0,until+1).map(s=>({x:START_YEAR+s.m/12,y:B(p,s.liq,s.m)})),{borderDash:[5,4],borderWidth:1.75})]},options:o});
+  const bud=[['Fuel',p.r_fuel],['Food + eating out',p.r_food],['Campsites + fun',p.r_fun],['Health insurance',p.r_health],['Van insurance + repairs',p.r_van],['Storage + Starlink',p.r_misc]].sort((a,c)=>c[1]-a[1]);
+  if(v.vanPmt>0) bud.push(['Van loan payment',v.vanPmt]);
+  document.getElementById('v-bud-sum').textContent = `${F$(A.vanBurn)}/mo net burn vs. ${F$(p.rent+livingOf(p))}/mo of rent and expenses now`;
+  hbars(document.getElementById('v-bud'),[...bud.map(([l,x])=>[l,x,'var(--van)']),...(p.side>0?[['Side income',-p.side,'var(--pos)']]:[]),['Net burn',A.vanBurn,'var(--van)','total'],['Denver rent + expenses now',p.rent+livingOf(p),'var(--rent)','total']],{fmt:x=>(x<0?'−':'')+F$(Math.abs(x))});
+  const mx=Math.max(1,...A.vSens.flat().map(Math.abs));
+  const best=A.vSens.flat().reduce((a,x)=>Math.max(a,x),-Infinity);
+  document.getElementById('v-sens-sum').textContent = `Best case in the grid: ${S$(B(p,best,v.end.m))}, with a short trip and full pay when you're back`;
+  document.getElementById('v-sens').innerHTML = `<thead><tr><th>Trip \\ Pay back</th>${A.payCols.map(c=>`<th>${c}%</th>`).join('')}</tr></thead><tbody>`+
+    A.tripRows.map((t,i)=>`<tr><td>${t} yr${t===1?'':'s'}</td>${A.payCols.map((c,j)=>`<td class="${t===p.roadYears&&c===p.returnPct?'base':''}" style="${sensCell(A.vSens[i][j],mx)}">${S$(B(p,A.vSens[i][j],v.end.m))}</td>`).join('')}</tr>`).join('')+'</tbody>';
+  document.getElementById('v-lg2').innerHTML = stackChart('c-v-comp', v, [COMP.retire,COMP.brok,COMP.cash,...(p.after==='buy'?[COMP.equity]:[]),COMP.van]);
+  const back=v.all[Math.min(v.M, v.roadM+p.gap)], full=run('van',variant(p,{returnPct:100}));
+  document.getElementById('v-ins').innerHTML = `
+    <p><b>Spending isn't the problem.</b> The road costs less than living in Denver. The cost is stopping ${F$(r.first.saved)}/mo of savings and ${F$(r.first.contrib)}/mo of retirement contributions, and losing the growth on both.</p>
+    <p><b>Coming back.</b> You're back at work in ${mon(v.roadM+p.gap)} with ${M$(B(p,back.liq,back.m))} in cash + brokerage.</p>
+    <p><b>Re-entry pay is the lever.</b> Coming back at 100% instead of ${p.returnPct}% is worth ${M$(Math.abs(B(p,full.end.nw-v.end.nw,v.end.m)))} by ${E}. Staying employable matters more than trimming the road budget.</p>
+    <p><b>Compounding.</b> Money not invested in the trip years never gets its ${H}-year run, so the gap keeps widening after you're back.</p>`;
+  annualTable(document.getElementById('v-table'), v, [
+    ['Take-home',y=>y.income],['Road + van loan',y=>y.road],['Housing',y=>y.housing],['Cars, ins., other',y=>y.living],['Left in bank (burned)',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
+    ['Cash',y=>y.cash,'bal'],['Brokerage',y=>y.brok,'bal'],['Van (net)',y=>y.van,'bal'],...(p.after==='buy'?[['Home equity',y=>y.equity,'bal']]:[]),['Retirement',y=>y.retire,'bal'],['Net worth',y=>y.nw,'bal',1]]);
+}
+
+/* =================== assumptions =================== */
+const SUF={'$mo':'/mo','$yr':'/yr','%':'%','yr':' yrs','mo':' mo'};
+function show(id,v){ const u=UNIT[id];
+  if(id==='rentBuyYears') return v>0?`Buy in ${START_YEAR+Math.round(v)}`:'Keep renting';
+  if(u&&u.startsWith('$')) return `${F$(v)}${SUF[u]?`<small>${SUF[u]}</small>`:''}`;
+  if(u==='yr') return `${grp(v)}<small>${v===1?' yr':' yrs'}</small>`;
+  if(u==='mo') return `${grp(v)}<small> mo</small>`;
+  return `${grp(v)}<small>%</small>`; }
+function inpHTML(id,val,who){
+  const u=UNIT[id], pre=u.startsWith('$')?'<span class="pre">$</span>':'';
+  const suf={'$mo':'/mo','$yr':'/yr','%':'%','yr':'years','mo':'months'}[u]||'';
+  return `<div class="inp">${pre}<input data-id="${id}"${who!==undefined?` data-who="${who}"`:''} inputmode="decimal" autocomplete="off" aria-label="${esc(LABEL[id])}${who!==undefined?' – '+PEOPLE[who]:''}" value="${grp(val)}">${suf?`<span class="suf">${suf}</span>`:''}</div>`;
+}
+function headTotal(bid){
+  const p=P;
+  if(bid==='box-savings') return `Liquid <b>${F$(p.cash+p.brok)}</b> · Total <b>${F$(p.cash+p.brok+p.retire)}</b>`;
+  if(bid==='box-income') return `Take-home <b>${F$(p.bank)}</b>/mo · Invested <b>${F$(p.bdd+p.contrib/12)}</b>/mo`;
+  if(bid==='box-exp') return `<b>${F$(p.rent+livingOf(p))}</b>/mo`;
+  if(bid==='box-road') return `Burn <b>${F$(roadBurn(p))}</b>/mo`;
+  return '';
+}
+function renderBox(bid){
+  const b=BOXES[bid], el=document.getElementById(bid), editing=!!EDIT[bid];
+  el.classList.toggle('editing',editing);
+  const btns = READONLY ? '' : editing ? `<button class="btn" data-act="cancel">Cancel</button><button class="btn pri" data-act="save">Save</button>` : `<button class="btn" data-act="edit">Edit</button>`;
+  let h=`<div class="box-h"><h3>${b.sq?`<i class="sq" style="background:${b.sq}"></i>`:''}${b.title}</h3><div class="right"><span class="tot" data-tot>${headTotal(bid)}</span>${btns}</div></div>`;
+  if(!editing){
+    h+=`<div class="vlist${b.people?' one':''}">`+b.fields.map(([id,l,d,u])=>{
+      if(u==='sel') return `<div class="vrow"><span class="l">${l}</span><span class="v">${P.after==='buy'?'Buy the house':'Rent again'}</span></div>`;
+      const split = b.people && P.pp[id] ? `<small>${PEOPLE[0]} ${F$(P.pp[id][0])} · ${PEOPLE[1]} ${F$(P.pp[id][1])}</small>` : '';
+      return `<div class="vrow"><span class="l">${l}${split}</span><span class="v">${show(id,P[id])}</span></div>`;
+    }).join('')+`</div>`;
+  } else if(b.people){
+    h+=`<div class="egrid"><span class="hd first"></span><span class="hd">${PEOPLE[0]}</span><span class="hd">${PEOPLE[1]}</span><span class="hd" style="text-align:right">Total</span>`;
+    b.fields.forEach(([id,l,d,u,hint])=>{
+      h+=`<span class="lb">${l}${hint?`<small>${hint}</small>`:''}</span>`;
+      if(P.pp[id]) h+=inpHTML(id,P.pp[id][0],0)+inpHTML(id,P.pp[id][1],1)+`<span class="tt" data-sum="${id}">${F$(P[id])}</span>`;
+      else h+=`<div class="span2">${inpHTML(id,P[id])}</div><span class="tt"></span>`;
+    });
+    h+=`</div><p class="ehint">Enter each person's share. Put a shared bill in one column or split it; the model only uses the total. Enter saves, Esc cancels.</p>`;
+  } else {
+    h+=`<div class="fields">`+b.fields.map(([id,l,d,u,hint])=>{
+      if(u==='sel') return `<div class="field"><label>${l}</label><div class="inp"><select data-sel="after"><option value="rent">Rent again</option><option value="buy">Buy the house</option></select></div><small>Buy uses the house inputs</small></div>`;
+      return `<div class="field"><label>${l}</label>${inpHTML(id,P[id])}${hint?`<small>${hint}</small>`:''}</div>`;
+    }).join('')+`</div>`;
+  }
+  el.innerHTML=h;
+  el.querySelectorAll('[data-act]').forEach(btn=>btn.onclick=()=>{
+    const a=btn.dataset.act;
+    if(a==='edit'){ EDIT[bid]=clone(P); renderBox(bid); const f=el.querySelector('input'); if(f) f.focus(); }
+    if(a==='cancel'){ P=EDIT[bid]; delete EDIT[bid]; renderBox(bid); recompute(); if(REMOTE_WAITING&&!Object.keys(EDIT).length){ const st=REMOTE_WAITING; REMOTE_WAITING=null; applyRemote(st); } }
+    if(a==='save'){ delete EDIT[bid]; REMOTE_WAITING=null; commit(); renderBox(bid); recompute(); }
+  });
+  const sel=el.querySelector('select[data-sel]'); if(sel){ sel.value=P.after; sel.onchange=()=>{P.after=sel.value; recompute();}; }
+  el.querySelectorAll('input[data-id]').forEach(inp=>{
+    const id=inp.dataset.id, who=inp.dataset.who!==undefined?+inp.dataset.who:undefined;
+    const cur=()=> who!==undefined? P.pp[id][who] : P[id];
+    inp.addEventListener('input',()=>{
+      const raw=inp.value.replace(/[^0-9.\-]/g,''); let n=parseFloat(raw);
+      if(isNaN(n)){ if(who===undefined||raw!=='') return; n=0; }
+      if(id==='horizon') n=Math.max(1,Math.min(30,Math.round(n)));
+      if(id==='rentBuyYears') n=Math.max(0,Math.round(n));
+      if(who!==undefined){ P.pp[id][who]=n; P[id]=P.pp[id][0]+P.pp[id][1]; const s=el.querySelector(`[data-sum="${id}"]`); if(s) s.textContent=F$(P[id]); }
+      else P[id]=n;
+      const t=el.querySelector('[data-tot]'); if(t) t.innerHTML=headTotal(bid);
+      recomputeSoon();
+    });
+    inp.addEventListener('focus',()=>{ inp.value=String(cur()); inp.select(); });
+    inp.addEventListener('blur',()=>{ inp.value=grp(cur()); });
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') el.querySelector('[data-act="save"]').click(); if(e.key==='Escape') el.querySelector('[data-act="cancel"]').click(); });
+  });
+}
+
+/* =================== homes =================== */
+function loadLocalHouses(){ try{ const v=JSON.parse(store.get('homeOrRoad.houses')||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
+let HOUSES = loadLocalHouses();
+let SAMPLE_IMG = false;
+const ADD = {url:'', text:'', img:null, busy:false, err:'', form:null, ctl:null};
+let CONFIRM_DEL = null;
+function renderHomesNav(){ const n=document.getElementById('nv-homes'); if(n) n.textContent = HOUSES.length ? String(HOUSES.length) : ''; }
+function persistLocalHouses(){ store.set('homeOrRoad.houses', JSON.stringify(HOUSES)); }
+async function saveHouse(h){
+  const body=Object.assign({}, h); delete body.id;
+  if(HOUSES_COL){
+    try{ if(h.id) await HOUSES_COL.doc(h.id).set(body); else await HOUSES_COL.add(body); }
+    catch(e){ ADD.err = e&&e.code==='quota_exceeded' ? 'The shared list is full. Remove a home and try again.' : e&&e.code==='invalid_argument' ? 'You have view-only access, so homes can’t be saved.' : 'Couldn’t save the home. Try again.'; renderHomes(); return false; }
+  } else {
+    if(!h.id) h.id='h'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    const i=HOUSES.findIndex(x=>x.id===h.id); if(i>=0) HOUSES[i]=h; else HOUSES.push(h);
+    persistLocalHouses(); renderHomesNav();
+  }
+  return true;
+}
+async function removeHouse(id){
+  if(HOUSES_COL){ try{ await HOUSES_COL.doc(id).delete(); }catch(e){} }
+  else { HOUSES=HOUSES.filter(h=>h.id!==id); persistLocalHouses(); renderHomesNav(); renderHomes(); }
+}
+function parseListingUrl(u){
+  let url; try{ url=new URL(u.trim()); }catch(e){ return null; }
+  const host=url.hostname.replace(/^www\./,''), parts=url.pathname.split('/').filter(Boolean);
+  const title = s => s.split('-').filter(Boolean).map(w=>/^\d/.test(w)||w.length<=2&&w===w.toUpperCase()?w:w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+  let address='', source=host.split('.').slice(-2,-1)[0]||host;
+  if(/zillow\./.test(host)){ source='Zillow'; const i=parts.indexOf('homedetails'); if(i>=0&&parts[i+1]){ const m=parts[i+1].match(/^(.*)-([A-Z]{2})-(\d{5})$/); address = m ? `${title(m[1])}, ${m[2]} ${m[3]}` : title(parts[i+1]); } }
+  else if(/redfin\./.test(host)){ source='Redfin'; if(parts.length>=3){ const st=parts[0], city=parts[1].replace(/-/g,' '), m=parts[2].match(/^(.*)-(\d{5})$/); address = m ? `${title(m[1])}, ${city}, ${st} ${m[2]}` : `${title(parts[2])}, ${city}, ${st}`; } }
+  else if(/realtor\.com/.test(host)){ source='Realtor.com'; const d=parts.find(x=>/_/.test(x)); if(d){ const seg=d.split('_'); address=`${title(seg[0])}, ${title(seg[1]||'')}, ${seg[2]||''} ${seg[3]||''}`.trim(); } }
+  else source = source.charAt(0).toUpperCase()+source.slice(1);
+  return {url:url.href, address, source};
+}
+function homeParams(h){ const o={price:+h.price||P.price, hoa:+h.hoaMo||0}; if(+h.taxYr>0 && +h.price>0) o.ptax=+h.taxYr/ +h.price*100; if(+h.insYr>0) o.hins=+h.insYr; return o; }
+const HCACHE=new Map();
+function homeStats(h){
+  const key=JSON.stringify([h.price,h.hoaMo,h.taxYr,h.insYr])+JSON.stringify(P)+REAL;
+  if(HCACHE.has(h.id+key)) return HCACHE.get(h.id+key);
+  const q=variant(P, homeParams(h)), b=run('buy',q), r=run('rent',q), f=b.first;
+  const st={ q, b, r, f, housing:f.housing, net:f.housing-f.taxBen, cash:b.cashAtClose, left:b.start.liq,
+    gap:B(q,b.end.nw-r.end.nw,b.end.m), nw:B(q,b.end.nw,b.end.m), be:beAppFor(q,24), status:liqStatus(b),
+    sB:b.all.filter((x,i)=>i%3===0).map(x=>B(q,x.nw,x.m)), sR:r.all.filter((x,i)=>i%3===0).map(x=>B(q,x.nw,x.m)) };
+  HCACHE.set(h.id+key, st); if(HCACHE.size>200) HCACHE.clear(); return st;
+}
+function spark2(a,b,ca,cb){
+  const all=[...a,...b], lo=Math.min(...all), hi=Math.max(...all), w=300, h=54, n=a.length-1;
+  const X=i=>(i/n*w).toFixed(1), Y=v=>(h-3-(v-lo)/(hi-lo||1)*(h-8)).toFixed(1), pts=s=>s.map((v,i)=>`${X(i)},${Y(v)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" width="100%" height="54" aria-hidden="true"><polyline points="${pts(b)}" fill="none" stroke="${cb}" stroke-width="1.75" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/><polyline points="${pts(a)}" fill="none" stroke="${ca}" stroke-width="2.25" vector-effect="non-scaling-stroke"/></svg>`;
+}
+const HFIELDS=[['address','Address','text',1],['price','List price','$'],['hoaMo','HOA','$mo'],['taxYr','Property tax','$yr'],['insYr','Homeowners insurance','$yr','','Leave blank to use your assumption'],['beds','Beds','n'],['baths','Baths','n'],['sqft','Square feet','n'],['yearBuilt','Year built','n'],['notes','Notes','text',1]];
+function renderAddPanel(el){
+  el=el||document.getElementById('modal-body'); if(!el||!MODAL) return;
+  if(ADD.form){
+    const f=ADD.form;
+    el.innerHTML = `<div class="card-h" style="padding-inline:0"><h2 id="modal-title">${f.id?'Edit home':'Check the details'}</h2><span class="sub">${f.source?esc(f.source)+' · ':''}${f.id?'':'Fix anything that looks off, then save'}</span></div>
+      <div class="card-b" style="padding-inline:0"><div class="fields">${HFIELDS.map(([k,l,t,wide,hint])=>{
+        const pre=t.startsWith('$')?'<span class="pre">$</span>':'', suf={'$mo':'/mo','$yr':'/yr'}[t]||'';
+        const v=f[k]===null||f[k]===undefined?'':(t==='text'||k==='yearBuilt'?f[k]:grp(f[k]));
+        return `<div class="field" ${wide?'style="grid-column:1/-1"':''}><label for="hf-${k}">${l}</label><div class="inp">${pre}<input id="hf-${k}" data-hf="${k}" ${t==='text'?'':'inputmode="decimal"'} autocomplete="off" value="${esc(v)}">${suf?`<span class="suf">${suf}</span>`:''}</div>${hint?`<small>${hint}</small>`:''}</div>`; }).join('')}</div></div>
+      <div class="add-foot" style="padding-inline:0"><button class="btn pri" id="hf-save">${f.id?'Save changes':'Save home'}</button><button class="btn" id="hf-cancel">Cancel</button><span class="msg ${ADD.err?'err':''}">${esc(ADD.err||(f.price?'':'A price is needed to run the numbers.'))}</span></div>`;
+    el.querySelectorAll('[data-hf]').forEach(inp=>inp.addEventListener('input',()=>{ const k=inp.dataset.hf, t=HFIELDS.find(x=>x[0]===k)[2]; if(t==='text') f[k]=inp.value; else { const raw=inp.value.replace(/[^0-9.]/g,''); f[k]= raw===''?null:+raw; } }));
+    document.getElementById('hf-cancel').onclick=()=>{ const id=ADD.form&&ADD.form.id; ADD.form=null; ADD.err=''; if(id) openModal({type:'home',id}); else closeModal(); };
+    document.getElementById('hf-save').onclick=async()=>{
+      if(!(+f.price>0)){ ADD.err='Enter a list price first.'; renderAddPanel(); return; }
+      const rec={url:f.url||'', source:f.source||'', address:(f.address||'').trim(), price:+f.price, hoaMo:+f.hoaMo||0, taxYr:+f.taxYr||0, insYr:+f.insYr||0, beds:f.beds??null, baths:f.baths??null, sqft:f.sqft??null, yearBuilt:f.yearBuilt??null, notes:(f.notes||'').trim(), addedAt:f.addedAt||Date.now()};
+      if(isFinite(+f.lat)&&+f.lat){ rec.lat=+f.lat; rec.lng=+f.lng; rec.geo=f.geo||'set'; }
+      if(f.id) rec.id=f.id;
+      ADD.err=''; const ok=await saveHouse(rec);
+      if(ok){ const wasId=f.id; ADD.form=null; ADD.url=''; ADD.text=''; ADD.img=null; if(wasId && P.activeHome===wasId){ homeAction('use',wasId); } if(!HOUSES_COL) renderHomes(); if(wasId) openModal({type:'home',id:wasId}); else { closeModal(); MAP_READY=false; renderHomes(); } }
+    };
+    return;
+  }
+  const pu = ADD.url ? parseListingUrl(ADD.url) : null;
+  const canRead = ADD.text.trim().length>40 || (!!SAMPLE && !!ADD.img);
+  el.innerHTML = `<div class="card-h" style="padding-inline:0"><h2 id="modal-title">Add a home</h2><span class="sub">${SAMPLE?'Claude reads the listing and fills in the details':'Paste the listing text and the page pulls out the numbers'}</span></div>
+    <div class="add-home" style="padding-inline:0">
+      <div>
+        <label for="h-url">Listing link</label>
+        <div class="urlbox"><input id="h-url" placeholder="Paste a Zillow, Redfin or MLS link" value="${esc(ADD.url)}" autocomplete="off"></div>
+        <div class="urlprev" id="h-urlprev">${pu?`${pu.address?esc(pu.address)+' · ':''}${esc(pu.source)}`:ADD.url?'<span style="color:var(--neg)">That doesn’t look like a link</span>':''}</div>
+        <label for="h-text">Listing text</label><textarea id="h-text" placeholder="On the listing page, select all (\u2318A / Ctrl+A), copy, and paste it here">${esc(ADD.text)}</textarea><div class="hint">Price, HOA, taxes and the facts panel are what matter. Pasting the whole page is fine.</div>
+      </div>
+      <div>
+        <div class="drop" id="h-drop" tabindex="0" role="button" aria-label="Drop a link${SAMPLE_IMG?' or screenshot':''}">
+          <b>Drop a link${SAMPLE_IMG?' or a screenshot':''} here</b>
+          <span>${SAMPLE_IMG?'Drag the listing\u2019s address bar or a screenshot onto this box, or paste a screenshot anywhere on this tab':'Drag the link from your browser\u2019s address bar onto this box. Screenshots need Claude, which isn\u2019t available in this view.'}</span>
+          ${ADD.img?`<span class="file">${esc(ADD.img.name||'screenshot')}<button id="h-rmimg" aria-label="Remove screenshot">×</button></span>`:SAMPLE_IMG?'<span style="color:var(--muted)">or click to choose an image</span>':''}
+        </div>
+        <input type="file" id="h-file" accept="image/*" hidden>
+      </div>
+    </div>
+    <div class="add-foot" style="padding-inline:0">
+      <button class="btn pri" id="h-read" ${canRead&&!ADD.busy?'':'disabled'}>${ADD.busy?'Reading listing\u2026':SAMPLE?'Read listing with Claude':'Read listing'}</button>
+      ${ADD.busy?'<button class="btn" id="h-stop">Stop</button>':''}
+      <button class="btn" id="h-manual" ${ADD.busy?'disabled':''}>Enter details by hand</button>
+      <span class="msg ${ADD.err?'err':''}">${esc(ADD.err|| (canRead?'Ready.':'Paste the listing text'+(SAMPLE_IMG?' or add a screenshot':'')+' to fill in the details.'))}</span>
+    </div>`;
+  const u=document.getElementById('h-url');
+  u.addEventListener('input',()=>{ ADD.url=u.value; const q=ADD.url?parseListingUrl(ADD.url):null; document.getElementById('h-urlprev').innerHTML = q?`${q.address?esc(q.address)+' · ':''}${esc(q.source)}`:ADD.url?'<span style="color:var(--neg)">That doesn’t look like a link</span>':''; });
+  const t=document.getElementById('h-text');
+  if(t) t.addEventListener('input',()=>{ ADD.text=t.value; const ok=ADD.text.trim().length>40||(!!SAMPLE&&!!ADD.img); const b=document.getElementById('h-read'); if(b) b.disabled=!ok; const m=el.querySelector('.add-foot .msg'); if(m&&!ADD.err) m.textContent = ok?'Ready.':'Paste the listing text'+(SAMPLE_IMG?' or add a screenshot':'')+' to fill in the details.'; });
+  const d=document.getElementById('h-drop'), fi=document.getElementById('h-file');
+  d.addEventListener('dragover',e=>{ e.preventDefault(); d.classList.add('over'); });
+  d.addEventListener('dragleave',()=>d.classList.remove('over'));
+  d.addEventListener('drop',e=>{ e.preventDefault(); d.classList.remove('over'); const dt=e.dataTransfer; const file=[...(dt.files||[])].find(f=>/^image\//.test(f.type));
+    if(file && SAMPLE_IMG){ ADD.img=file; renderAddPanel(); return; }
+    if(file){ ADD.err='Screenshots need Claude, which isn\u2019t available in this view. Paste the listing text instead, or send the screenshot to Claude in chat.'; renderAddPanel(); return; }
+    const txt=(dt.getData('text/uri-list')||dt.getData('text/plain')||'').split('\n').find(x=>/^https?:/.test(x.trim()));
+    if(txt){ ADD.url=txt.trim(); renderAddPanel(); } });
+  d.addEventListener('click',e=>{ if(e.target.id==='h-rmimg') return; if(SAMPLE_IMG) fi.click(); });
+  d.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&SAMPLE_IMG){ e.preventDefault(); fi.click(); } });
+  fi.onchange=()=>{ if(fi.files[0]){ ADD.img=fi.files[0]; renderAddPanel(); } };
+  const rm=document.getElementById('h-rmimg'); if(rm) rm.onclick=e=>{ e.stopPropagation(); ADD.img=null; renderAddPanel(); };
+  const rd=document.getElementById('h-read'); if(rd) rd.onclick=readListing;
+  const sp=document.getElementById('h-stop'); if(sp) sp.onclick=()=>ADD.ctl&&ADD.ctl.abort();
+  document.getElementById('h-manual').onclick=()=>{ const q=ADD.url?parseListingUrl(ADD.url):null; ADD.form={url:q?q.url:'', source:q?q.source:'', address:q?q.address:'', price:null}; ADD.err=''; renderAddPanel(); };
+}
+document.addEventListener('paste',e=>{
+  if(!MODAL||MODAL.type!=='add'||ADD.form||!SAMPLE_IMG) return;
+  const f=[...(e.clipboardData&&e.clipboardData.files||[])].find(x=>/^image\//.test(x.type));
+  if(f){ e.preventDefault(); ADD.img=f; renderAddPanel(); }
+});
+function parseListingText(txt){
+  const t=' '+txt.replace(/\u00a0/g,' ').replace(/[ \t]+/g,' ')+' ';
+  const money=x=>+String(x).replace(/[^0-9.]/g,'');
+  const find=(re)=>{ const m=t.match(re); return m?m:null; };
+  const out={};
+  // price: labelled first, else the first large dollar figure
+  let m=find(/(?:list(?:ing)? price|price|asking)[:\s]*\$\s?([\d,]{5,})/i) || find(/\$\s?([\d]{3},[\d]{3}(?:,[\d]{3})?)(?![\d])/);
+  if(m){ const v=money(m[1]); if(v>=50000) out.price=v; }
+  const first=(...res)=>{ for(const re of res){ const x=t.match(re); if(x) return x; } return null; };
+  m=first(/(?:beds?|bedrooms?)[:\s]*(\d{1,2}(?:\.\d)?)\b/i, /(?<![\d,.])(\d{1,2}(?:\.\d)?)\s*(?:bd|bds|beds?|bedrooms?)\b/i); if(m) out.beds=+m[1];
+  m=first(/(?:baths?|bathrooms?)[:\s]*(\d{1,2}(?:\.\d{1,2})?)\b/i, /(?<![\d,.])(\d{1,2}(?:\.\d{1,2})?)\s*(?:ba|baths?|bathrooms?)\b/i); if(m) out.baths=+m[1];
+  m=first(/(?<![\d])([\d,]{3,7})\s*(?:sq\.?\s?ft|sqft|square feet)\b/i, /(?:sq\.?\s?ft|square feet|living area)[:\s]*([\d,]{3,7})/i); if(m) out.sqft=money(m[1]);
+  m=find(/(?:built in|year built)[:\s]*(1[89]\d\d|20\d\d)/i); if(m) out.yearBuilt=+m[1];
+  // HOA
+  if(/(?:has hoa|hoa)[:\s]*(?:no|none|n\/a)\b/i.test(t) || /hoa (?:fees|dues)[:\s]*(?:n\/a|none)/i.test(t)) out.hoaMo=0;
+  m=find(/hoa[^$\n]{0,40}\$\s?([\d,]+(?:\.\d+)?)\s*(?:\/|per|\s)?\s*(mo|month|monthly|yr|year|annual|annually|qtr|quarter|quarterly)?/i);
+  if(m){ let v=money(m[1]); const f=(m[2]||'mo').toLowerCase(); if(/^(yr|year|annual)/.test(f)) v/=12; else if(/^(qtr|quarter)/.test(f)) v/=3; out.hoaMo=Math.round(v); }
+  // property tax: an annual figure first, then a payment-breakdown line (monthly)
+  m=find(/(?:annual tax amount|tax annual amount|annual property tax(?:es)?|property tax(?:es)?\s*\(\d{4}\)|taxes\s*\(\d{4}\))[:\s]*\$\s?([\d,]+)/i);
+  if(m) out.taxYr=money(m[1]);
+  else { m=find(/property tax(?:es)?[:\s]*\$\s?([\d,]+)(\s*\/\s*mo| per month| monthly)?/i); if(m){ let v=money(m[1]); if(m[2]||v<2500) v*=12; out.taxYr=Math.round(v); } }
+  m=find(/home(?:owners)?(?:'s)? insurance[:\s]*\$\s?([\d,]+)(\s*\/\s*mo| per month| monthly)?/i);
+  if(m){ let v=money(m[1]); if(m[2]||v<1500) v*=12; if(v>200) out.insYr=Math.round(v); }
+  return out;
+}
+async function readListing(){
+  if(ADD.busy) return;
+  const q=ADD.url?parseListingUrl(ADD.url):null;
+  if(!SAMPLE){
+    const r=parseListingText(ADD.text||'');
+    const n=Object.keys(r).length;
+    ADD.form=Object.assign({url:q?q.url:'', source:q?q.source:'', address:(q&&q.address)||'', price:null, notes:''}, r);
+    ADD.err = n ? '' : 'Couldn\u2019t find listing details in that text. Fill them in below.';
+    renderAddPanel(); return;
+  }
+  ADD.busy=true; ADD.err=''; ADD.ctl=new AbortController(); renderAddPanel();
+  const prompt=`Extract the facts of this real-estate listing${ADD.text.trim()?' from the pasted page text':''}${ADD.img?' and the attached screenshot of the listing':''}. Listing link: ${q?q.url:'none'}${q&&q.address?` (address from the link: ${q.address})`:''}.
+Reply with ONLY a JSON object:
+{"address": string|null, "price": number|null, "hoaMonthly": number|null, "propertyTaxAnnual": number|null, "insuranceAnnual": number|null, "beds": number|null, "baths": number|null, "sqft": number|null, "yearBuilt": number|null, "lat": number|null, "lng": number|null, "notes": string|null}
+Rules: use null for anything the listing doesn't state; plain numbers in USD without symbols or commas; convert quarterly or annual HOA dues to monthly; price is the current list price. notes: at most 25 words on anything that materially affects cost or risk (special assessments, metro district taxes, roof or HVAC age, flood zone, major repairs). Address as "street, city, ST zip". lat/lng: your best estimate of the home's coordinates (5 decimals) from the address, or null if you can't place it within about a quarter mile.
+${ADD.text.trim()?'\nPAGE TEXT:\n'+ADD.text.trim().slice(0,60000):''}`;
+  try{
+    const opts={signal:ADD.ctl.signal, modelTier:'default', cache:false}; if(ADD.img) opts.images=ADD.img;
+    const r=await SAMPLE.json(prompt, opts);
+    if(!r||typeof r!=='object') throw {code:'invalid_json'};
+    const num=v=>{ const n=+v; return isFinite(n)&&n>0?n:null; };
+    ADD.form={url:q?q.url:'', source:q?q.source:'', address:r.address||(q&&q.address)||'', price:num(r.price), hoaMo:num(r.hoaMonthly), taxYr:num(r.propertyTaxAnnual), insYr:num(r.insuranceAnnual), beds:num(r.beds), baths:num(r.baths), sqft:num(r.sqft), yearBuilt:num(r.yearBuilt), notes:r.notes||''};
+    if(isFinite(+r.lat)&&isFinite(+r.lng)&&Math.abs(+r.lat-39.7)<1&&Math.abs(+r.lng+105)<1){ ADD.form.lat=+r.lat; ADD.form.lng=+r.lng; ADD.form.geo='estimated'; }
+  }catch(e){
+    const c=e&&e.code;
+    if(c==='cancelled') ADD.err='';
+    else if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(c)){ SAMPLE=null; ADD.err='Claude isn’t available here. Enter the details by hand.'; }
+    else if(c==='images_unavailable'||c==='image_rejected'){ SAMPLE_IMG=false; ADD.img=null; ADD.err='That screenshot couldn’t be read. Paste the listing text instead.'; }
+    else if(c==='rate_limited') ADD.err='Claude is rate-limited right now. Try again in a few minutes, or enter the details by hand.';
+    else if(c==='invalid_json') ADD.err='Claude couldn’t find listing details in that. Paste more of the page, or enter them by hand.';
+    else ADD.err='Couldn’t read the listing this time. Try again or enter the details by hand.';
+  }finally{ ADD.busy=false; ADD.ctl=null; if(MODAL&&MODAL.type==='add') renderAddPanel(); }
+}
+
+
+/* =================== homes: map, list, modal =================== */
+const GEO = {"zips":{"80001":[-105.0875,39.8028],"80002":[-105.0984,39.7945],"80003":[-105.0655,39.8286],"80004":[-105.1177,39.8141],"80005":[-105.1097,39.8422],"80006":[-105.0875,39.8028],"80007":[-105.1724,39.8634],"80010":[-104.8646,39.7368],"80011":[-104.8152,39.7378],"80012":[-104.8377,39.6987],"80013":[-104.7846,39.6575],"80014":[-104.835,39.6662],"80015":[-104.7874,39.6255],"80016":[-104.7394,39.6012],"80017":[-104.7881,39.6948],"80018":[-104.7071,39.7102],"80019":[-104.7069,39.7656],"80020":[-105.0609,39.9245],"80021":[-105.1139,39.8854],"80022":[-104.9113,39.8259],"80023":[-105.0148,39.9619],"80024":[-104.9188,39.8445],"80025":[-105.288,39.9324],"80026":[-105.0963,39.998],"80027":[-105.1456,39.9789],"80028":[-105.14,39.95],"80030":[-105.037,39.8302],"80031":[-105.0345,39.8753],"80033":[-105.0962,39.774],"80034":[-105.0772,39.7661],"80035":[-105.0372,39.8367],"80036":[-105.0372,39.8367],"80037":[-104.9339,39.8083],"80038":[-105.0867,39.9205],"80040":[-104.8319,39.7294],"80041":[-104.4083,39.7388],"80042":[-104.8319,39.7294],"80044":[-104.4083,39.7388],"80045":[-104.8384,39.7467],"80046":[-104.4083,39.7388],"80047":[-104.4083,39.7388],"80101":[-103.9846,39.4203],"80102":[-104.4275,39.7589],"80103":[-104.2019,39.6985],"80104":[-104.8561,39.3722],"80105":[-104.068,39.5931],"80106":[-104.5746,39.0969],"80107":[-104.592,39.3836],"80108":[-104.853,39.4455],"80109":[-104.9014,39.3643],"80110":[-105.0092,39.6463],"80111":[-104.8799,39.6123],"80112":[-104.9011,39.5805],"80113":[-104.9614,39.6405],"80116":[-104.7256,39.3728],"80117":[-104.4523,39.324],"80118":[-104.8546,39.2011],"80120":[-105.0044,39.5994],"80121":[-104.9532,39.6111],"80122":[-104.9557,39.5814],"80123":[-105.0901,39.6206],"80124":[-104.8863,39.5517],"80125":[-105.0561,39.4845],"80126":[-104.9691,39.5437],"80127":[-105.1328,39.592],"80128":[-105.0832,39.5918],"80129":[-105.0109,39.5397],"80130":[-104.9218,39.5414],"80131":[-105.0075,39.4764],"80132":[-104.8542,39.1007],"80133":[-104.9148,39.1205],"80134":[-104.8447,39.4895],"80135":[-105.0676,39.3113],"80136":[-104.2683,39.7814],"80137":[-104.5834,39.7623],"80138":[-104.7216,39.5102],"80150":[-104.9878,39.6478],"80151":[-104.9878,39.6478],"80155":[-104.9878,39.6478],"80160":[-105.0166,39.6133],"80161":[-105.0166,39.6133],"80162":[-105.2239,39.522],"80163":[-104.9947,39.3479],"80165":[-105.0166,39.6133],"80166":[-105.0166,39.6133],"80201":[-104.8568,39.7263],"80202":[-104.9946,39.7491],"80203":[-104.9811,39.7313],"80204":[-105.0259,39.734],"80205":[-104.9661,39.759],"80206":[-104.9524,39.7331],"80207":[-104.9177,39.7584],"80208":[-104.9847,39.7392],"80209":[-104.9686,39.7074],"80210":[-104.9631,39.679],"80211":[-105.0204,39.7665],"80212":[-105.0493,39.7683],"80214":[-105.0643,39.7436],"80215":[-105.1009,39.7435],"80216":[-104.9669,39.7835],"80217":[-104.9847,39.7392],"80218":[-104.9717,39.7327],"80219":[-105.0341,39.6956],"80220":[-104.9129,39.7312],"80221":[-104.9988,39.838],"80222":[-104.9279,39.671],"80223":[-105.0028,39.7002],"80224":[-104.9108,39.688],"80225":[-105.1204,39.6971],"80226":[-105.0918,39.7123],"80227":[-105.0854,39.6667],"80228":[-105.156,39.6888],"80229":[-104.9227,39.8671],"80230":[-104.8951,39.7218],"80231":[-104.8843,39.6793],"80232":[-105.0908,39.6895],"80233":[-104.9407,39.9015],"80234":[-105.0109,39.9108],"80235":[-105.0795,39.6472],"80236":[-105.0376,39.6535],"80237":[-104.8987,39.6431],"80238":[-104.9847,39.7392],"80239":[-104.8288,39.7878],"80241":[-104.9719,39.868],"80243":[-104.9847,39.7392],"80244":[-104.9847,39.7392],"80246":[-104.9312,39.7086],"80247":[-104.8819,39.6971],"80248":[-104.9847,39.7392],"80249":[-104.7557,39.7783],"80250":[-104.9847,39.7392],"80251":[-104.9847,39.7392],"80252":[-104.9847,39.7392],"80256":[-104.9928,39.7474],"80257":[-104.9847,39.7392],"80259":[-104.9913,39.7462],"80260":[-105.0041,39.8672],"80261":[-104.985,39.7379],"80262":[-104.9384,39.731],"80263":[-104.9847,39.7392],"80264":[-104.9863,39.7426],"80265":[-104.9847,39.7392],"80266":[-104.9915,39.7472],"80271":[-104.9847,39.7392],"80273":[-104.9875,39.7273],"80274":[-104.9876,39.7439],"80279":[-104.87,39.76],"80280":[-104.87,39.76],"80281":[-104.9876,39.7439],"80290":[-104.9876,39.7436],"80291":[-104.9876,39.7439],"80293":[-104.9907,39.7458],"80294":[-104.989,39.7491],"80295":[-104.87,39.76],"80299":[-104.9847,39.7392],"80301":[-105.2143,40.0497],"80302":[-105.2851,40.0172],"80303":[-105.2392,39.9914],"80304":[-105.2771,40.0375],"80305":[-105.2531,39.9807],"80306":[-105.3847,40.1022],"80307":[-105.3735,40.0878],"80308":[-105.3868,40.0277],"80309":[-105.2705,40.015],"80310":[-105.2705,40.015],"80314":[-105.3735,40.0878],"80321":[-105.25,40.02],"80322":[-105.25,40.02],"80323":[-105.25,40.02],"80328":[-105.25,40.02],"80329":[-105.25,40.02],"80401":[-105.1915,39.7305],"80402":[-105.2211,39.7555],"80403":[-105.2825,39.8232],"80433":[-105.3169,39.5197],"80439":[-105.3402,39.6374],"80465":[-105.1746,39.6125],"80470":[-105.3741,39.4667]}};
+const TRAILS = [
+  ['Green Mountain', -105.1865,39.6995], ['Matthews/Winters · Red Rocks',-105.1975,39.6830], ['Apex Park',-105.2160,39.7160],
+  ['North Table Mountain',-105.2150,39.7930], ['White Ranch',-105.2150,39.8320], ['Mount Falcon',-105.2110,39.6390],
+  ['Lair o’ the Bear',-105.2540,39.6670], ['Bear Creek Lake Park',-105.1390,39.6520], ['South Valley Park',-105.1410,39.5640],
+  ['Deer Creek Canyon',-105.1530,39.5430], ['Golden Gate Canyon',-105.2600,39.8330], ['Chautauqua · Boulder',-105.2820,39.9990],
+];
+const miles = (a,b) => { const R=3958.8, t=Math.PI/180, dLa=(b[1]-a[1])*t, dLo=(b[0]-a[0])*t; const h=Math.sin(dLa/2)**2+Math.cos(a[1]*t)*Math.cos(b[1]*t)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
+function homeLL(h){
+  if(isFinite(+h.lng)&&isFinite(+h.lat)&&+h.lat) return {ll:[+h.lng,+h.lat], how:h.geo||'set'};
+  const z=(String(h.address||'').match(/\b(80\d{3})\b/)||[])[1];
+  if(z && GEO.zips[z]) return {ll:GEO.zips[z], how:'zip'};
+  return null;
+}
+function nearestTrail(ll){ let best=null; for(const [n,x,y] of TRAILS){ const d=miles(ll,[x,y]); if(!best||d<best.d) best={n,d}; } return best; }
+function locInfo(h){ const g=homeLL(h); if(!g) return null; return {ll:g.ll, how:g.how, work:PLACES.work?miles(g.ll,PLACES.work.ll):null, now:PLACES.now?miles(g.ll,PLACES.now.ll):null, trail:nearestTrail(g.ll)}; }
+/* ---- map (Leaflet + OpenStreetMap data via CARTO basemaps) ---- */
+let PLACES = {};   // personal reference points, loaded from Supabase for signed-in members
+let LMAP=null, BASE=null, LAYER=null, MAP_READY=false, PLACE=null, HOVER=null;
+function isDark(){ const t=document.documentElement.dataset.theme; return t==='dark' || (t!=='light' && matchMedia('(prefers-color-scheme: dark)').matches); }
+function tileUrl(){ return isDark() ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'; }
+function bindMap(){
+  if(LMAP || !window.L) return;
+  LMAP = L.map('h-leaflet',{zoomControl:false, scrollWheelZoom:true, attributionControl:true}).setView([39.70,-105.02],10);
+  L.control.zoom({position:'topright'}).addTo(LMAP);
+  BASE = L.tileLayer(tileUrl(),{maxZoom:19, subdomains:'abcd', attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(LMAP);
+  LAYER = L.layerGroup().addTo(LMAP);
+  LMAP.on('click', async e=>{
+    if(!PLACE) return;
+    const h=HOUSES.find(z=>z.id===PLACE); PLACE=null; document.getElementById('h-place').hidden=true; document.getElementById('h-leaflet').classList.remove('placing');
+    if(h){ const rec=Object.assign({},h,{lng:Math.round(e.latlng.lng*1e5)/1e5, lat:Math.round(e.latlng.lat*1e5)/1e5, geo:'manual'}); await saveHouse(rec); if(!HOUSES_COL) renderHomes(); openModal({type:'home',id:h.id}); }
+  });
+  document.getElementById('m-fit').onclick=()=>drawMap(true);
+  document.getElementById('h-place-cancel').onclick=()=>{ PLACE=null; document.getElementById('h-place').hidden=true; document.getElementById('h-leaflet').classList.remove('placing'); };
+  try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>BASE&&BASE.setUrl(tileUrl())); }catch(e){}
+}
+function divIcon(html){ return L.divIcon({className:'lwrap', html, iconSize:null, iconAnchor:[0,0]}); }
+function drawMap(refit){
+  if(!LMAP) return;
+  setTimeout(()=>LMAP.invalidateSize(),0);
+  LAYER.clearLayers();
+  TRAILS.forEach(([n,x,y])=>L.marker([y,x],{icon:divIcon('<div class="ltri"></div>'),keyboard:false}).bindTooltip(n+' trailhead',{direction:'top',offset:[0,-6]}).addTo(LAYER));
+  Object.values(PLACES).forEach(pl=>L.marker([pl.ll[1],pl.ll[0]],{icon:divIcon(`<div class="lplace ${pl.kind}"><i></i><span>${esc(pl.n)}</span></div>`),keyboard:false}).addTo(LAYER));
+  const pts=[];
+  HOUSES.forEach(h=>{ const g=homeLL(h); if(!g) return; const s=homeStats(h), active=P.activeHome===h.id&&+P.price===+h.price;
+    const cls = s.status.cls==='bad'?'warn':(s.gap>=0?'pos':'neg');
+    const m=L.marker([g.ll[1],g.ll[0]],{icon:divIcon(`<div class="lpin ${cls} ${active?'active':''}" data-id="${h.id}"><i></i>${M$(+h.price)}${g.how==='zip'?'<b class="approx"></b>':''}</div>`), riseOnHover:true, title:h.address||''}).addTo(LAYER);
+    m.on('click',()=>{ if(!PLACE) openModal({type:'home',id:h.id}); });
+    m.on('mouseover',()=>{ const row=document.querySelector(`.hrow[data-id="${h.id}"]`); if(row) row.classList.add('hl'); });
+    m.on('mouseout',()=>document.querySelectorAll('.hrow.hl').forEach(r=>r.classList.remove('hl')));
+    pts.push([g.ll[1],g.ll[0]]); });
+  if(refit||!MAP_READY){
+    const all=pts.concat(Object.values(PLACES).map(pl=>[pl.ll[1],pl.ll[0]]));
+    if(all.length>=2) LMAP.fitBounds(all,{padding:[50,50],maxZoom:14}); else if(all.length===1) LMAP.setView(all[0],13); else LMAP.setView([39.70,-105.02],10);
+    MAP_READY=true;
+  }
+}
+function zoomBy(){}
+/* address lookup: OpenStreetMap Nominatim, at most one request per second */
+const GEOQ=new Set(); let GEO_RUNNING=false;
+async function geocode(address){
+  const u='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&viewbox=-105.45,40.10,-104.55,39.35&q='+encodeURIComponent(address);
+  const r=await fetch(u,{headers:{'Accept':'application/json'}}); if(!r.ok) return null; const j=await r.json();
+  return j&&j[0] ? [Math.round(+j[0].lon*1e5)/1e5, Math.round(+j[0].lat*1e5)/1e5] : null;
+}
+async function autoGeocode(){
+  if(GEO_RUNNING) return; GEO_RUNNING=true;
+  try{ for(const h of HOUSES.slice()){
+    if((isFinite(+h.lat)&&+h.lat) || GEOQ.has(h.id) || !h.address) continue; GEOQ.add(h.id);
+    try{ const ll=await geocode(h.address); if(ll){ await saveHouse(Object.assign({},h,{lng:ll[0],lat:ll[1],geo:'geocoded'})); if(!HOUSES_COL) renderHomes(); } }catch(e){}
+    await new Promise(r=>setTimeout(r,1100)); } }
+  finally{ GEO_RUNNING=false; }
+}
+
+/* modal */
+let MODAL=null, LAST_FOCUS=null;
+function openModal(m){ MODAL=m; LAST_FOCUS=document.activeElement; const el=document.getElementById('modal'); el.hidden=false; document.body.style.overflow='hidden'; renderModal(); setTimeout(()=>{ const f=el.querySelector('input,button.btn'); if(f) f.focus(); },0); }
+function closeModal(){ MODAL=null; const el=document.getElementById('modal'); el.hidden=true; document.body.style.overflow=''; if(ADD.ctl) ADD.ctl.abort(); ADD.form=null; ADD.err=''; CONFIRM_DEL=null; if(LAST_FOCUS&&LAST_FOCUS.focus) LAST_FOCUS.focus(); }
+function renderModal(){
+  if(!MODAL) return; const body=document.getElementById('modal-body');
+  if(MODAL.type==='add'){ renderAddPanel(body); return; }
+  if(MODAL.type==='signin'){ renderSignin(body); return; }
+  const h=HOUSES.find(x=>x.id===MODAL.id); if(!h){ closeModal(); return; }
+  body.innerHTML=homeProfile(h, homeStats(h));
+  body.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>homeAction(b.dataset.act,b.dataset.id));
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && MODAL) closeModal(); });
+
+function renderHomes(){
+  if(!A) return;
+  const p=A.p, H=A.R.rent.H, E=START_YEAR+H-1, N=NAME(p);
+  const stats=HOUSES.map(h=>({h, s:homeStats(h), loc:locInfo(h)}));
+  const th=document.getElementById('h-thesis'), le=document.getElementById('h-lede');
+  if(!stats.length){
+    th.innerHTML = `Save the homes you're looking at and see what each one does to your plan.`;
+    le.textContent = `Add a home from a Zillow or Redfin listing. Each one gets a pin on the map, its own monthly cost, a cash-to-close check and a ${H}-year outlook against ${N.rent==='Rent'?'renting':N.rent}.`;
+  } else {
+    const best=stats.slice().sort((x,y)=>y.s.gap-x.s.gap)[0], wins=stats.filter(x=>x.s.gap>=0).length;
+    th.innerHTML = `${stats.length} home${stats.length>1?'s':''} saved. ${hl('buy',esc((best.h.address||'Untitled').split(',')[0]))} fits best: ${hl('buy',F$(best.s.housing)+'/mo')} all-in and ${signHl(best.s.gap,S$(best.s.gap))} vs. the rent path by ${E}.`;
+    le.textContent = `${wins} of ${stats.length} beat the rent path over ${H} years at ${p.app}% a year of home value growth. Click a pin or a row for the full profile.`;
+  }
+  document.getElementById('h-addbtn').onclick=()=>{ ADD.form=null; ADD.err=''; openModal({type:'add'}); };
+  bindMap(); drawMap(!MAP_READY);
+  const needs=stats.filter(x=>x.loc&&x.loc.how==='zip').length;
+  document.getElementById('h-mapnote').innerHTML = `Straight-line distances. Trailhead pins are approximate. Homes are located from their address automatically.${needs?` <span style="color:var(--warn)">●</span> ${needs} home${needs>1?'s are':' is'} placed at the ZIP code's center; open ${needs>1?'them':'it'} and use Fix location.`:''}`;
+  // list
+  const list=document.getElementById('h-list');
+  list.innerHTML = stats.length ? `<div class="hrow head"><span>Home</span><span>Price</span><span>All-in /mo</span><span>${VS(p).replace('vs.','Vs.')}, ${E}</span><span>Cash check</span><span>To work</span><span>To a trail</span></div>`+
+    stats.map(({h,s,loc})=>{ const meta=[h.beds&&`${h.beds} bd`, h.baths&&`${h.baths} ba`, h.sqft&&`${(+h.sqft).toLocaleString('en-US')} sq ft`].filter(Boolean).join(' · ');
+      const active=p.activeHome===h.id&&+p.price===+h.price;
+      return `<button class="hrow" data-id="${h.id}"><span class="hname"><b>${esc((h.address||'Untitled').split(',')[0])}</b><small>${esc((h.address||'').split(',').slice(1).join(',').trim())}${meta?' · '+meta:''}</small>${active?chip('In Buy tab','up'):''}</span>
+        <span class="num strong" data-l="Price">${M$(+h.price)}</span><span class="num" data-l="All-in /mo">${F$(s.housing)}</span>
+        <span data-l="vs. rent">${chip(S$(s.gap),s.gap>=0?'up':'dn')}</span><span data-l="Cash"><span class="status ${s.status.cls}">${s.status.cls==='good'?'OK':s.status.txt}</span></span>
+        <span class="num" data-l="To work">${loc&&loc.work!=null?loc.work.toFixed(1)+' mi':'\u2013'}</span><span class="num" data-l="To a trail" title="${loc?esc(loc.trail.n):''}">${loc?loc.trail.d.toFixed(1)+' mi':'–'}</span></button>`; }).join('')
+    : `<div class="empty">No homes yet. Click <b>Add a home</b> to start.</div>`;
+  list.querySelectorAll('.hrow[data-id]').forEach(r=>{ r.onclick=()=>openModal({type:'home',id:r.dataset.id});
+    r.onmouseenter=()=>{ const pin=document.querySelector(`.m-pin[data-id="${r.dataset.id}"]`); if(pin) pin.classList.add('hover'); };
+    r.onmouseleave=()=>{ document.querySelectorAll('.m-pin.hover').forEach(x=>x.classList.remove('hover')); }; });
+  document.getElementById('h-dh').hidden = document.getElementById('h-dr').hidden = stats.length<2;
+  if(stats.length>=2){
+    const rows=[
+      ['Price',x=>M$(+x.h.price)], ['Price per sq ft',x=>x.h.sqft?F$(x.h.price/x.h.sqft):'–'],
+      ['All-in monthly',x=>F$(x.s.housing)], ['vs. rent per month',x=>S$(x.s.housing-p.rent)],
+      ['Cash to close + reno',x=>M$(x.s.cash)], ['Left after closing',x=>M$(x.s.left),x=>x.s.left<0?'neg':''],
+      [`Net worth, end of ${E}`,x=>M$(x.s.nw)], [VS(p).replace('vs.','Vs.'),x=>S$(x.s.gap),x=>x.s.gap>=0?'pos':'neg'],
+      ['Break-even growth',x=>isFinite(x.s.be)?(Math.round(x.s.be*10)/10)+'%/yr':(x.s.be<0?'Always wins':'Never')],
+      ['Miles to work',x=>x.loc&&x.loc.work!=null?x.loc.work.toFixed(1):'\u2013'], ['Nearest trailhead',x=>x.loc?`${x.loc.trail.n} · ${x.loc.trail.d.toFixed(1)} mi`:'–'],
+    ];
+    document.getElementById('h-cmp').innerHTML = `<thead><tr><th></th>${stats.map(x=>`<th title="${esc(x.h.address||'')}">${esc((x.h.address||'Untitled').split(',')[0])}</th>`).join('')}</tr></thead><tbody>`+
+      rows.map(r=>`<tr><td>${r[0]}</td>${stats.map(x=>`<td class="${r[2]?r[2](x):''}">${r[1](x)}</td>`).join('')}</tr>`).join('')+'</tbody>';
+  }
+  if(MODAL && MODAL.type==='home') renderModal();
+  autoGeocode();
+}
+function homeProfile(h,s){
+  const p=A.p, E=START_YEAR+A.R.rent.H-1, active=p.activeHome===h.id&&+p.price===+h.price, loc=locInfo(h);
+  const meta=[h.beds&&`${h.beds} bd`, h.baths&&`${h.baths} ba`, h.sqft&&`${(+h.sqft).toLocaleString('en-US')} sq ft`, h.yearBuilt&&`built ${h.yearBuilt}`].filter(Boolean).join(' · ');
+  const hm=(l,v,sub,cls)=>`<div class="hm"><div class="l">${l}</div><div class="v ${cls||''}">${v}</div><div class="s">${sub}</div></div>`;
+  const beTxt = isFinite(s.be)?(Math.round(s.be*10)/10)+'%/yr':(s.be<0?'Always':'Never');
+  const f=s.f, confirm=CONFIRM_DEL===h.id;
+  const costRows=[['Principal + interest',f.pi],['Property tax',f.pt],['Insurance',f.hins],['Maintenance',f.maint],['HOA',f.hoa],['Extra utilities',f.util],['PMI',f.pmi]].filter(x=>x[1]>0.5);
+  return `<div class="mp">
+    <div class="mp-h"><div><div class="eyebrow"><i style="background:var(--c-eq)"></i>${esc(h.source||'Home')}${active?' · in Buy tab':''}</div>
+      <h2 id="modal-title">${esc(h.address||'Untitled listing')}</h2><div class="meta">${meta||'Add beds, baths and square feet with Edit'}</div></div>
+      <div style="text-align:right"><div class="price">${M$(+h.price)}</div>${h.sqft?`<div class="meta">${F$(h.price/h.sqft)}/sq ft</div>`:''}</div></div>
+    <div class="mp-status"><span class="status ${s.status.cls}">${s.status.txt}</span>${h.url?`<a href="${esc(h.url)}" target="_blank" rel="noopener" class="lnk">Open listing ↗</a>`:''}</div>
+    <div class="hm-grid four">
+      ${hm('All-in monthly',F$(s.housing),`${S$(s.housing-p.rent)} vs. rent`)}
+      ${hm('Cash to close + reno',M$(s.cash),`${M$(s.left)} left after`, s.left<0?'dn':'')}
+      ${hm(`${VS(p).replace('vs.','Vs.')}, ${E}`,S$(s.gap),`${M$(s.nw)} net worth`, s.gap>=0?'up':'dn')}
+      ${hm('Break-even growth',beTxt,`You assume ${p.app}%`, isFinite(s.be)&&p.app>=s.be?'up':'')}
+    </div>
+    <div class="mp-cols">
+      <div><div class="mp-k">Monthly cost, year 1</div><div class="mp-list">${costRows.map(([l,v])=>`<div><span>${l}</span><b>${F$(v)}</b></div>`).join('')}${f.taxBen>0?`<div><span>Mortgage tax savings</span><b class="up">−${F$(f.taxBen)}</b></div>`:''}<div class="tot"><span>All-in</span><b>${F$(s.housing)}</b></div></div></div>
+      <div><div class="mp-k">${A.R.rent.H}-year outlook</div>${spark2(s.sB,s.sR,css('--buy'),css('--rent'))}<div class="hspark"><div class="lg"><span><i class="sq" style="background:var(--buy)"></i> Buy this home</span><span><i class="sq" style="background:var(--rent)"></i> ${esc(NAME(p).rent)}</span></div></div>
+        <div class="mp-k" style="margin-top:14px">Location</div>
+        ${loc?`<div class="mp-list">${loc.work!=null?`<div><span>To ${esc(PLACES.work.n)}</span><b>${loc.work.toFixed(1)} mi</b></div>`:''}<div><span>Nearest trailhead</span><b>${esc(loc.trail.n)} · ${loc.trail.d.toFixed(1)} mi</b></div>${loc.now!=null?`<div><span>From ${esc(PLACES.now.n)}</span><b>${loc.now.toFixed(1)} mi</b></div>`:''}</div>${loc.how==='zip'?'<div class="meta" style="color:var(--warn);margin-top:6px">Placed at the ZIP code’s center. Use Fix location to put it in the right spot.</div>':''}`:'<div class="meta">No location yet. Use Fix location to place it on the map.</div>'}
+      </div>
+    </div>
+    ${h.notes?`<div class="notes">${esc(h.notes)}</div>`:''}
+    <div class="home-actions">${confirm
+      ? `<span class="grow" style="font-size:12.5px">Remove this home from the list?</span><button class="btn" data-act="keep" data-id="${h.id}">Keep</button><button class="btn pri" data-act="del" data-id="${h.id}">Remove</button>`
+      : `<button class="btn pri" data-act="use" data-id="${h.id}" ${active?'disabled':''}>${active?'Using in Buy tab':'Use in Buy tab'}</button><button class="btn" data-act="edit" data-id="${h.id}">Edit details</button><button class="btn" data-act="place" data-id="${h.id}">Fix location</button><span class="grow"></span><button class="btn" data-act="ask" data-id="${h.id}">Remove</button>`}</div>
+  </div>`;
+}
+function homeAction(act,id){
+  const h=HOUSES.find(x=>x.id===id); if(!h) return;
+  if(act==='use'){ const o=homeParams(h); P.price=o.price; P.hoa=o.hoa; if(o.ptax) P.ptax=Math.round(o.ptax*1000)/1000; if(o.hins) P.hins=o.hins; P.activeHome=h.id; commit(); recompute(); renderModal(); }
+  if(act==='edit'){ ADD.form=Object.assign({}, h); ADD.err=''; MODAL={type:'add'}; renderModal(); }
+  if(act==='place'){ const el=document.getElementById('modal'); el.hidden=true; MODAL=null; document.body.style.overflow=''; PLACE=h.id; const b=document.getElementById('h-place'); b.hidden=false; b.querySelector('span').textContent=`Click the map where ${(h.address||'this home').split(',')[0]} is.`; document.getElementById('h-leaflet').classList.add('placing'); document.getElementById('h-mapcard').scrollIntoView({behavior:'smooth',block:'center'}); }
+  if(act==='ask'){ CONFIRM_DEL=id; renderModal(); }
+  if(act==='keep'){ CONFIRM_DEL=null; renderModal(); }
+  if(act==='del'){ CONFIRM_DEL=null; closeModal(); removeHouse(id); }
+}
+
+/* =================== orchestration =================== */
+function renderNav(){
+  const p=A.p, N=NAME(p);
+  ['rent','buy','van'].forEach(k=>{ document.querySelector(`[data-nv="${k}"]`).textContent=M$(B(p,A.R[k].end.nw,A.R[k].end.m)); document.querySelector(`[data-nm="${k}"]`).textContent=N[k]; });
+  document.getElementById('meta').innerHTML = `${p.horizon}-year projection from Jan 2027<br>Net worth shown at end of ${START_YEAR+A.R.rent.H-1}`;
+}
+function recompute(){ A=computeAll(P); if(!Object.keys(EDIT).length) save(); renderNav(); renderHomesNav(); renderTab(); }
+let _t=null; function recomputeSoon(){ clearTimeout(_t); _t=setTimeout(recompute,120); }
+function renderTab(){ if(TAB==='summary') renderSummary(); else if(TAB==='rent') renderRent(); else if(TAB==='buy') renderBuy(); else if(TAB==='van') renderVan(); else if(TAB==='homes') renderHomes(); }
+function setTab(t){
+  TAB=t; store.set('homeOrRoad.tab',t);
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===t));
+  document.querySelectorAll('.wrap > .tab').forEach(s=>s.hidden = s.id!=='tab-'+t);
+  if(t==='inputs'){ Object.keys(BOXES).forEach(renderBox); setSync(); }
+  renderTab(); window.scrollTo({top:0});
+}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+document.querySelectorAll('details.drawer').forEach(d=>{
+  if(OPEN[d.dataset.d]) d.open=true;
+  d.addEventListener('toggle',()=>{ OPEN[d.dataset.d]=d.open; store.set('homeOrRoad.open2',JSON.stringify(OPEN)); if(d.open && A) renderTab(); });
+});
+function setBasis(real){ REAL=real; store.set('homeOrRoad.real2',real?'1':'0'); document.getElementById('b-real').setAttribute('aria-pressed',real); document.getElementById('b-nom').setAttribute('aria-pressed',!real); if(A){ renderNav(); renderTab(); } }
+document.getElementById('b-real').onclick=()=>setBasis(true);
+document.getElementById('b-nom').onclick=()=>setBasis(false);
+document.getElementById('reset').onclick=()=>{ P=clone(DEFAULTS); for(const k in EDIT) delete EDIT[k]; AI=null; commit(); Object.keys(BOXES).forEach(renderBox); recompute(); };
+const retheme=()=>{ if(A) renderTab(); };
+try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',retheme); }catch(e){}
+new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+setBasis(REAL);
+A=computeAll(P); renderNav(); setSync();
+setTab(TAB);
+renderAuth();
+connectStore();
+</script>
+
+</body>
+</html>
