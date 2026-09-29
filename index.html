@@ -355,6 +355,10 @@ textarea:focus{border-color:var(--buy);box-shadow:0 0 0 3px color-mix(in srgb,va
 .mp-list .tot{border-top:1px solid var(--line-2);border-bottom:0;font-weight:600} .mp-list .tot span{color:var(--ink)}
 b.up{color:var(--pos)}
 #h-leaflet{width:100%;height:100%;background:var(--card-2)}
+/* OSM has no dark style: invert the light tiles in dark mode */
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) #h-leaflet .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.88) saturate(.6)}}
+:root[data-theme="dark"] #h-leaflet .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.88) saturate(.6)}
+@media (prefers-color-scheme: light){#h-leaflet .leaflet-tile-pane{filter:saturate(.75)}}
 #h-leaflet.placing,#h-leaflet.placing .leaflet-interactive{cursor:crosshair}
 .leaflet-container{font-family:var(--f)}
 .leaflet-control-attribution{font-size:10px}
@@ -1766,12 +1770,12 @@ function locInfo(h){ const g=homeLL(h); if(!g) return null; return {ll:g.ll, how
 let PLACES = {};   // personal reference points, loaded from Supabase for signed-in members
 let LMAP=null, BASE=null, LAYER=null, MAP_READY=false, PLACE=null, HOVER=null;
 function isDark(){ const t=document.documentElement.dataset.theme; return t==='dark' || (t!=='light' && matchMedia('(prefers-color-scheme: dark)').matches); }
-function tileUrl(){ return isDark() ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'; }
+function tileUrl(){ return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'; }   // OSM standard tiles: no key; dark mode is a CSS filter on the tile pane
 function bindMap(){
   if(LMAP || !window.L) return;
   LMAP = L.map('h-leaflet',{zoomControl:false, scrollWheelZoom:true, attributionControl:true}).setView([39.70,-105.02],10);
   L.control.zoom({position:'topright'}).addTo(LMAP);
-  BASE = L.tileLayer(tileUrl(),{maxZoom:19, subdomains:'abcd', attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(LMAP);
+  BASE = L.tileLayer(tileUrl(),{maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(LMAP);
   LAYER = L.layerGroup().addTo(LMAP);
   LMAP.on('click', async e=>{
     if(!PLACE) return;
