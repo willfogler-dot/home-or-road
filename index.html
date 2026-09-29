@@ -497,6 +497,26 @@ b.up{color:var(--pos)}
 .lt-a{display:grid;place-items:center;color:var(--muted);font-size:15px}
 .lt-note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5}
 @media (max-width:980px){ .lt{grid-template-columns:1fr} .lt-a{height:22px;transform:rotate(90deg)} }
+/* cash flow statement */
+.cf-ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.cf-ctl .seg{grid-auto-columns:auto}
+.cf-card{overflow:hidden}
+table.cf{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-content;min-width:100%}
+.cf th,.cf td{padding:7px 12px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--grid)}
+.cf th{position:sticky;top:0;background:var(--card);z-index:2;text-transform:none;letter-spacing:0;font-size:12px;color:var(--ink);font-weight:600;vertical-align:bottom}
+.cf th .ph{display:block;font-size:10.5px;color:var(--muted);font-weight:500;margin-top:1px}
+.cf th .ph.act{color:var(--ink-2)}
+.cf td:first-child,.cf th:first-child{position:sticky;left:0;background:var(--card);text-align:left;z-index:1;min-width:250px;border-right:1px solid var(--line)}
+.cf th:first-child{z-index:3}
+.cf tr.sec td{font-size:10.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--card-2);padding-top:12px}
+.cf tr.sec td:first-child{background:var(--card-2)}
+.cf tr.tot td{font-weight:650;border-top:1px solid var(--line-2)}
+.cf tr.grand td{font-weight:700;background:var(--card-2);border-top:1px solid var(--line-2)}
+.cf tr.grand td:first-child{background:var(--card-2)}
+.cf td.neg{color:var(--neg)}
+.cf td.tc,.cf th.tc{border-left:1px solid var(--line)}
+.cf tbody tr:hover td{background:var(--card-2)}
+.cf-note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.55}
 /* show the math */
 .x{cursor:pointer;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,currentColor 45%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px;border-radius:4px;transition:background .12s,text-decoration-color .12s;outline-offset:2px}
 .x:hover,.x:focus-visible{background:var(--field);text-decoration-color:currentColor}
@@ -563,6 +583,7 @@ b.up{color:var(--pos)}
       <button role="tab" data-tab="rent"><span class="ic"><i style="background:var(--rent)"></i></span><span data-nm="rent">Rent</span><span class="nv" data-nv="rent"></span></button>
       <button role="tab" data-tab="buy"><span class="ic"><i style="background:var(--buy)"></i></span><span data-nm="buy">Buy</span><span class="nv" data-nv="buy"></span></button>
       <button role="tab" data-tab="van"><span class="ic"><i style="background:var(--van)"></i></span><span data-nm="van">Van Life</span><span class="nv" data-nv="van"></span></button>
+      <button role="tab" data-tab="cash"><span class="ic"><i style="background:var(--ink-2);border-radius:1px;height:6px"></i></span>Cash flow<span class="nv"></span></button>
       <div class="grp">Shopping</div>
       <button role="tab" data-tab="homes"><span class="ic"><i style="background:var(--c-eq)"></i></span>Homes<span class="nv" id="nv-homes"></span></button>
       <div class="grp">Inputs</div>
@@ -652,6 +673,19 @@ b.up{color:var(--pos)}
       <details class="drawer" data-d="b-table"><summary><div><b>Annual projection</b><span>Year-by-year cash flow and balances</span></div><i class="chev"></i></summary>
         <div class="drawer-b flush"><div class="tw"><table id="b-table"></table></div></div></details>
     </div>
+  </section>
+
+  <!-- CASH FLOW -->
+  <section class="tab" id="tab-cash" hidden>
+    <header class="hero"><div class="eyebrow">Cash flow statement · <span id="cf-eb"></span></div><h1 class="thesis" id="cf-thesis"></h1><p class="lede" id="cf-lede"></p></header>
+    <div class="cf-ctl">
+      <div class="seg" id="cf-path"><button data-k="rent">Rent</button><button data-k="buy">Buy</button><button data-k="van">Van Life</button></div>
+      <div class="seg" id="cf-per"><button data-p="y">Yearly</button><button data-p="m">Monthly</button></div>
+      <label class="ctl-pill" id="cf-yr-w" hidden>Year <select id="cf-yr"></select></label>
+      <button class="btn" id="cf-csv" style="margin-left:auto">Download CSV</button>
+    </div>
+    <div class="card cf-card"><div class="tw"><table class="cf" id="cf-table"></table></div></div>
+    <p class="cf-note" id="cf-note"></p>
   </section>
 
   <!-- VAN -->
@@ -812,8 +846,9 @@ function renderSignin(body){
 const T0 = new Date(), T0Y = T0.getFullYear(), T0M = T0.getMonth(), STUB = T0M===0 ? 0 : 12-T0M;
 const START_YEAR = T0M===0 ? T0Y : T0Y+1;   // first full calendar year; month 0 = this month
 const XM = m => T0Y + (T0M+m)/12, calY = m => Math.floor((T0M+m)/12), yrOfM = m => new Date(T0Y, T0M+m, 1).getFullYear();
-function leIdx(p){ const [y,mo]=String(p.leaseEnd||'').split('-').map(Number); if(!y||!mo) return 0; return Math.max(0,(y-T0Y)*12+(mo-1)-T0M+1); }
-const tIdx = p => leIdx(p)+Math.max(0,Math.round(p.m2m||0));
+function ymIdx(v){ const [y,mo]=String(v||'').split('-').map(Number); if(!y||!mo) return null; return Math.max(0,(y-T0Y)*12+(mo-1)-T0M+1); }   // index of the month after v
+const leIdx = p => ymIdx(p.leaseEnd) ?? 0;
+const tIdx = p => { const e=ymIdx(p.m2mEnd); return Math.max(leIdx(p), e ?? leIdx(p)+Math.max(0,Math.round(p.m2m||0))); };
 const STD_DED = 32200, SALT_CAP = 40000, MARG = 0.24, CO_TAX = 0.044, PMI_RATE = 0.5, VAN_TERM = 60;
 const PEOPLE = ['Will','Megan'];
 const BOXES = {
@@ -832,7 +867,7 @@ const BOXES = {
   'box-lease': {title:'Lease timeline', stages:true, fields:[
     ['rentNow','Rent',0,'$mo','0 = same as the house with a yard'],
     ['leaseEnd','Lease ends','2026-12','ym','Last month of the lease'],
-    ['m2m','Months',3,'mo','0 = move straight from the lease'],
+    ['m2mEnd','Month-to-month until','2027-03','ym','Last month there; set it to the lease-end month to skip'],
     ['rentM2M','Rent',0,'$mo','0 = same as current rent'],
     ['rent','Rent, today’s market',3400,'$mo','Denver single-family median is ~$2,900; west side with a yard runs higher'],
     ['rentG','Increase per year',2,'%','Denver single-family rents are down ~3% YoY'],
@@ -909,7 +944,7 @@ function fromState(s){
 let LOCAL_RAW=null; try{ LOCAL_RAW=JSON.parse(store.get('homeOrRoad.v3')||'null'); }catch(e){}
 let P = fromState(LOCAL_RAW);
 let REAL = store.get('homeOrRoad.real2')!=='0';
-let TAB = ['summary','rent','buy','van','homes','inputs'].includes(store.get('homeOrRoad.tab')) ? store.get('homeOrRoad.tab') : 'summary';
+let TAB = ['summary','rent','buy','van','cash','homes','inputs'].includes(store.get('homeOrRoad.tab')) ? store.get('homeOrRoad.tab') : 'summary';
 let OPEN = {}; try{ OPEN = JSON.parse(store.get('homeOrRoad.open2')||'{}')||{}; }catch(e){}
 const EDIT = {};
 function save(){ store.set('homeOrRoad.v3', JSON.stringify(Object.assign({}, P, {v4:true}))); }
@@ -997,7 +1032,7 @@ function run(kind, p){
   const laterBuyM = kind==='buy' ? T : kind==='rent' && p.rentBuyYears>0 ? T+Math.round(p.rentBuyYears*12) : (kind==='van' && p.after==='buy' ? roadEnd : null);
   const roadMul = p._roadMul||1;
   let cash=p.cash, brok=p.brok, retire=p.retire, home=0, mort=0, pmt=0, mr=0, van=0, vanBal=0, vanPmt=0, bought=false;
-  let preClose=0, postClose=0, preVan=0, postVan=0, cashAtClose=0, buyM=null, loan0=0, price0=0, closeCost=0, renoCost=0, down0=0, vanCashIn=0, vanSaleNet=0;
+  let evClose=0, evVan=0, evSale=0, preClose=0, postClose=0, preVan=0, postVan=0, cashAtClose=0, buyM=null, loan0=0, price0=0, closeCost=0, renoCost=0, down0=0, vanCashIn=0, vanSaleNet=0;
   const vr = p.vanRate/100/12;
   const vanDep = roadM ? p.vanPrice*(1-p.vanResale/100)/roadM : 0;
   let draw=0;
@@ -1005,14 +1040,14 @@ function run(kind, p){
   function buyHome(m){
     price0 = p.price*Math.pow(1+p.app/100, m/12);
     down0 = price0*p.down/100; closeCost = price0*p.closeBuy/100; renoCost = p.reno*Math.pow(1+p.infl/100,m/12);
-    cashAtClose = down0+closeCost+renoCost; preClose=cash+brok; spend(cashAtClose); postClose=cash+brok;
+    cashAtClose = down0+closeCost+renoCost; preClose=cash+brok; spend(cashAtClose); postClose=cash+brok; evClose+=cashAtClose;
     home=price0; mort=price0-down0; loan0=mort; mr=p.rate/100/12;
     pmt = mr>0 ? mort*mr/(1-Math.pow(1+mr,-360)) : mort/360; bought=true; buyM=m;
   }
   if(laterBuyM===0) buyHome(0);
   function buyVan(){
     const fin=Math.min(100,Math.max(0,p.vanFin||0))/100;
-    vanBal=p.vanPrice*fin; vanCashIn=p.vanPrice*(1-fin)+p.vanSetup; preVan=cash+brok; spend(vanCashIn); postVan=cash+brok; van=p.vanPrice;
+    vanBal=p.vanPrice*fin; vanCashIn=p.vanPrice*(1-fin)+p.vanSetup; preVan=cash+brok; spend(vanCashIn); postVan=cash+brok; evVan+=vanCashIn; van=p.vanPrice;
     vanPmt = vanBal>0 ? (vr>0 ? vanBal*vr/(1-Math.pow(1+vr,-VAN_TERM)) : vanBal/VAN_TERM) : 0;
   }
   if(kind==='van' && vS===0) buyVan();
@@ -1026,11 +1061,11 @@ function run(kind, p){
     const y=calY(m), f=Math.pow(1+p.infl/100,m/12), g=Math.pow(1+p.raise/100,y);
     if(kind==='van' && vS>0 && m===vS) buyVan();
     const onRoad = kind==='van' && m>=vS && m<roadEnd, inGap = kind==='van' && m>=roadEnd && m<roadEnd+p.gap, pre = kind==='van' && m<vS;
-    if(kind==='van' && m===roadEnd){ vanSaleNet=van-vanBal; cash+=vanSaleNet; van=0; vanBal=0; }
+    if(kind==='van' && m===roadEnd){ vanSaleNet=van-vanBal; cash+=vanSaleNet; evSale+=vanSaleNet; van=0; vanBal=0; }
     if(laterBuyM!==null && laterBuyM>0 && m===laterBuyM && !bought) buyHome(m);
     const rp=p.returnPct/100, rk=m-(roadEnd+p.gap), rM=Math.max(0,p.catchUp||0)*12;
     const fac = kind==='van' && m>=roadEnd ? (rM>0 && rk>0 ? Math.min(Math.max(rp,1), rp+(1-rp)*rk/rM) : rp) : 1;
-    const r = {bank:0,bdd:0,contrib:0,rent:0,pi:0,interest:0,pt:0,hins:0,maint:0,hoa:0,util:0,pmi:0,car:0,ins:0,other:0,road:0,vanLoan:0,side:0,taxBen:0,taxRef:0};
+    const r = {bank:0,bdd:0,contrib:0,rent:0,pi:0,interest:0,pt:0,hins:0,maint:0,hoa:0,util:0,pmi:0,car:0,ins:0,other:0,road:0,vanLoan:0,side:0,taxBen:0,taxRef:0,redir:0};
     if(onRoad){
       r.side=p.side*f; r.road=roadBurn(p)*roadMul*f; van-=vanDep;
       if(vanBal>0){ const it=vanBal*vr, pr=Math.min(vanPmt-it,vanBal); vanBal-=pr; r.vanLoan=it+pr; }
@@ -1043,7 +1078,7 @@ function run(kind, p){
         if(bought) keep = Math.min(keep, p.bddOwn/100);
         keep = Math.max(0, Math.min(1, keep));
         const dep = p.bdd*g*fac;
-        r.bdd = dep*keep; r.bank = p.bank*g*fac + dep*(1-keep); r.contrib=p.contrib*g*fac/12;
+        r.bdd = dep*keep; r.redir = dep*(1-keep); r.bank = p.bank*g*fac + r.redir; r.contrib=p.contrib*g*fac/12;
       }
       if(bought){
         r.interest = mort>0 ? mort*mr : 0;
@@ -1072,7 +1107,7 @@ function run(kind, p){
     if(cash>tgt){ r.sweep=cash-tgt; cash-=r.sweep; brok+=r.sweep; }
     r.brokDraw=draw; r.invested=r.bdd+r.contrib; r.brokGrowth=brok*ri; r.retGrowth=retire*ri; r.cashGrowth=cash>0?cash*rc:0;
     cash *= cash>0?(1+rc):1; brok *= (1+ri); retire *= (1+ri);   // a negative brokerage balance = borrowing, charged at the investment return
-    r.fac=fac; Object.assign(r, snap(m+1)); r.onRoad=onRoad; r.inGap=inGap; r.pre=pre;
+    r.fac=fac; r.oneClose=evClose; r.oneVan=evVan; r.oneSale=evSale; evClose=evVan=evSale=0; Object.assign(r, snap(m+1)); r.onRoad=onRoad; r.inGap=inGap; r.pre=pre;
     months.push(r);
   }
   const years=[];
@@ -1653,7 +1688,7 @@ function leaseDates(){
 function leaseHTML(editing){
   const row=id=>{ const fld=BOXES['box-lease'].fields.find(x=>x[0]===id); return `<div class="lt-r"><span class="l">${fld[1]}${editing&&fld[4]?`<small>${fld[4]}</small>`:''}</span>${editing?inpHTML(id,P[id]):`<span class="v">${show(id,P[id])}</span>`}</div>`; };
   const st=(n,t,did,ids,cls)=>`<div class="lt-s ${cls||''}"><div class="n">${n}</div><h4>${t}</h4><div class="d" id="${did}"></div>${ids.map(row).join('')}</div>`;
-  const html=`<div class="lt">${st('Now','Current lease','lt-d1',['rentNow','leaseEnd'])}<div class="lt-a">→</div>${st('Then','Month-to-month','lt-d2',['m2m','rentM2M'])}<div class="lt-a">→</div>${st('Rent path','House with a yard','lt-d3',['rent','rentG','rentBuyYears'],'fut')}</div>
+  const html=`<div class="lt">${st('Now','Current lease','lt-d1',['rentNow','leaseEnd'])}<div class="lt-a">→</div>${st('Then','Month-to-month','lt-d2',['m2mEnd','rentM2M'])}<div class="lt-a">→</div>${st('Rent path','House with a yard','lt-d3',['rent','rentG','rentBuyYears'],'fut')}</div>
     <div class="lt-note">All three paths share the first two stages. In <b id="lt-t"></b> Rent moves into the house with a yard, Buy closes, and Van leaves. After the road, the van path rents the house with a yard.</div>`;
   setTimeout(leaseDates,0); return html;
 }
@@ -2099,7 +2134,7 @@ function renderNav(){
 }
 function recompute(){ A=computeAll(P); if(!Object.keys(EDIT).length) save(); renderNav(); renderHomesNav(); renderTab(); if(XSTACK.length) renderX(); }
 let _t=null; function recomputeSoon(){ clearTimeout(_t); _t=setTimeout(recompute,120); }
-function renderTab(){ if(TAB==='summary') renderSummary(); else if(TAB==='rent') renderRent(); else if(TAB==='buy') renderBuy(); else if(TAB==='van') renderVan(); else if(TAB==='homes') renderHomes(); }
+function renderTab(){ if(TAB==='summary') renderSummary(); else if(TAB==='rent') renderRent(); else if(TAB==='buy') renderBuy(); else if(TAB==='van') renderVan(); else if(TAB==='cash') renderCash(); else if(TAB==='homes') renderHomes(); }
 function setTab(t){
   TAB=t; store.set('homeOrRoad.tab',t);
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===t));
@@ -2119,6 +2154,90 @@ document.getElementById('reset').onclick=()=>{ P=clone(DEFAULTS); for(const k in
 const retheme=()=>{ if(A) renderTab(); };
 try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',retheme); }catch(e){}
 new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+/* =================== cash flow statement =================== */
+let CF = (()=>{ try{ return Object.assign({k:'rent',per:'y',yr:0}, JSON.parse(store.get('homeOrRoad.cf')||'{}')); }catch(e){ return {k:'rent',per:'y',yr:0}; } })();
+function cfLines(run){
+  const L=[
+    ['sec','Income'],
+    ['Paychecks to checking', x=>x.bank-x.redir],
+    ['Brokerage deposit sent to checking', x=>x.redir],
+    ['Tax refund from owning (April)', x=>x.taxRef],
+    ['Side income', x=>x.side],
+    ['tot','Total income', x=>x.bank+x.taxRef+x.side],
+    ['sec','Expenses'],
+    ['Rent', x=>x.rent],
+    ['Mortgage principal + interest', x=>x.pi],
+    ['Property tax', x=>x.pt],
+    ['Homeowners insurance', x=>x.hins],
+    ['Maintenance', x=>x.maint],
+    ['HOA, extra utilities, PMI', x=>x.hoa+x.util+x.pmi],
+    ['Cars', x=>x.car],
+    ['Insurance', x=>x.ins],
+    ['Other recurring', x=>x.other],
+    ['Road costs', x=>x.road],
+    ['Van loan payments', x=>x.vanLoan],
+    ['tot','Total expenses', x=>x.housing+x.living+x.road+x.vanLoan],
+    ['grand','Net income', x=>x.bankNet],
+    ['sec','One-time'],
+    ['Home purchase (down, closing, reno)', x=>-x.oneClose],
+    ['Van + setup', x=>-x.oneVan],
+    ['Van sale, net of loan', x=>x.oneSale],
+    ['sec','Saving + investing'],
+    ['Brokerage direct deposits', x=>x.bdd],
+    ['Cash moved to brokerage', x=>x.sweep],
+    ['Pulled from brokerage', (x,i)=>-(x.brokDraw+(i===0?run.draw0:0))],
+    ['Retirement contributions', x=>x.contrib],
+    ['Investment growth', x=>x.brokGrowth+x.retGrowth],
+    ['sec','Balances, end of period'],
+    ['Cash', x=>x.cash, 'bal'],
+    ['Brokerage', x=>x.brok, 'bal'],
+    ['Retirement', x=>x.retire, 'bal'],
+    ['Home value', x=>x.home, 'bal'],
+    ['Mortgage balance', x=>-x.mort, 'bal'],
+    ['Home equity, after selling costs', x=>x.equity, 'bal'],
+    ['Van, less loan', x=>x.van-x.vanBal, 'bal'],
+    ['grand','Net worth', x=>x.nw, 'bal'],
+  ];
+  return L.map(l=> l[0]==='sec' ? {sec:l[1]} : (l[0]==='tot'||l[0]==='grand') ? {cls:l[0], l:l[1], fn:l[2], bal:l[3]==='bal'} : {l:l[0], fn:l[1], bal:l[2]==='bal'})
+          .filter(o=> o.sec || o.cls || run.months.some((x,i)=>Math.abs(o.fn(x,i))>0.5));
+}
+function phaseOf(run,i){ const x=run.months[i]; if(i<run.LE) return 'Lease'; if(i<run.T) return 'Month-to-month'; if(x.onRoad) return 'Road'; if(x.inGap) return 'Job search'; if(x.pi>0) return 'Owning'; return 'Renting'; }
+function cfData(){
+  const run=A.R[CF.k]; let cols;
+  if(CF.per==='y') cols=run.years.map(yr=>({h:String(yr.year), ph:yr.stub?`${yr.n} mo`:'', idx:Array.from({length:yr.n},(_,j)=>yr.m0+j)}));
+  else { const yr=run.years.find(y=>y.year===CF.yr)||run.years[0]; CF.yr=yr.year;
+    cols=Array.from({length:yr.n},(_,j)=>{ const i=yr.m0+j; return {h:new Date(T0Y,T0M+i,1).toLocaleString('en-US',{month:'short'}), ph:phaseOf(run,i), act:i===run.T||i===run.LE, idx:[i]}; });
+    cols.push({h:`${yr.year} total`, ph:'', idx:Array.from({length:yr.n},(_,j)=>yr.m0+j), tot:true}); }
+  const lines=cfLines(run);
+  const val=(o,c)=> o.bal ? o.fn(run.months[c.idx[c.idx.length-1]], c.idx[c.idx.length-1]) : c.idx.reduce((a,i)=>a+o.fn(run.months[i],i),0);
+  return {run, cols, lines, val};
+}
+function renderCash(){
+  const p=A.p, N=NAME(p), {run,cols,lines,val}=cfData();
+  document.querySelectorAll('#cf-path button').forEach(b=>{ b.textContent=N[b.dataset.k]; b.setAttribute('aria-pressed',b.dataset.k===CF.k); b.onclick=()=>{ CF.k=b.dataset.k; saveCF(); renderCash(); }; });
+  document.querySelectorAll('#cf-per button').forEach(b=>{ b.setAttribute('aria-pressed',b.dataset.p===CF.per); b.onclick=()=>{ CF.per=b.dataset.p; saveCF(); renderCash(); }; });
+  const ys=document.getElementById('cf-yr'), yw=document.getElementById('cf-yr-w');
+  yw.hidden = CF.per!=='m';
+  if(!run.years.some(y=>y.year===CF.yr)) CF.yr = yrOfM(run.T);
+  ys.innerHTML=run.years.map(y=>`<option value="${y.year}">${y.year}</option>`).join(''); ys.value=String(CF.yr); ys.onchange=()=>{ CF.yr=+ys.value; saveCF(); renderCash(); };
+  document.getElementById('cf-eb').textContent = N[CF.k];
+  document.getElementById('cf-thesis').textContent = 'Every dollar in and out, by '+(CF.per==='y'?'year':'month');
+  document.getElementById('cf-lede').textContent = `Current lease through ${mon(run.LE-1)}, month-to-month until ${mon(run.T-1)}, then ${CF.k==='rent'?'the house with a yard':CF.k==='buy'?'the house you buy':'the road'} from ${mon(run.T)}. Future dollars, as they hit your accounts.`;
+  const fmt=v=>{ const r=Math.round(v); return r===0?'–':(r<0?'('+Math.abs(r).toLocaleString('en-US')+')':r.toLocaleString('en-US')); };
+  document.getElementById('cf-table').innerHTML = `<thead><tr><th>${CF.per==='y'?'Year':String(CF.yr)}</th>${cols.map(c=>`<th class="${c.tot?'tc':''}">${c.h}${c.ph?`<span class="ph ${c.act?'act':''}">${c.ph}</span>`:''}</th>`).join('')}</tr></thead><tbody>`+
+    lines.map(o=> o.sec ? `<tr class="sec"><td>${o.sec}</td>${cols.map(c=>`<td class="${c.tot?'tc':''}"></td>`).join('')}</tr>`
+      : `<tr class="${o.cls||''}"><td>${o.l}</td>${cols.map(c=>{ const v=val(o,c); return `<td class="${c.tot?'tc ':''}${v<-0.5&&(o.cls==='grand'||o.l==='Cash'||o.l==='Brokerage')?'neg':''}">${fmt(v)}</td>`; }).join('')}</tr>`).join('')+'</tbody>';
+  document.getElementById('cf-note').innerHTML = `Future dollars. Parentheses are money going out. Net income = total income − total expenses; positive net income stays in checking, and anything above your ${p.cashMonths}-month cash cushion is moved to brokerage. When net income is negative or a one-time cost is due, the money comes from cash first, then brokerage (“Pulled from brokerage”). ${CF.per==='m'?'The small label under each month is what’s happening then.':'Balances are at the end of each year.'}`;
+  document.getElementById('cf-csv').onclick=()=>{
+    const q=v=>/[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v;
+    const head=[CF.per==='y'?'Line':String(CF.yr),...cols.map(c=>c.h+(c.ph&&CF.per==='m'?` (${c.ph})`:''))];
+    const body=lines.map(o=> o.sec ? [o.sec.toUpperCase()] : [o.l,...cols.map(c=>String(Math.round(val(o,c)*100)/100))]);
+    const blob=new Blob([[head,...body].map(r=>r.map(x=>q(String(x))).join(',')).join('\n')],{type:'text/csv'}), a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=`cash-flow-${CF.k}-${CF.per==='y'?'yearly':CF.yr}.csv`; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500);
+  };
+}
+function saveCF(){ store.set('homeOrRoad.cf', JSON.stringify(CF)); }
 
 /* =================== up-front capital =================== */
 function upOf(k){
