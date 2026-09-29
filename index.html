@@ -1551,13 +1551,14 @@ function renderVan(){
   document.getElementById('v-wf-sub').textContent = `Gap ${VS(p)}, end of ${E}, today's dollars`;
   hbars(document.getElementById('v-wf'), [...vc.parts.map(([l,x,k2])=>[l,x,x<0?'var(--pos)':'var(--van)','','vg:'+k2]),['Total gap',vc.total,'var(--neg)','total','vgap']],{fmt:x=>(x<0?'−':'')+M$(Math.abs(x))});
   const until=Math.min(v.M, v.roadM+p.gap+18);
-  document.getElementById('v-lg1').innerHTML = `<span><i class="sq" style="background:var(--van)"></i>${N.van}</span><span><i class="sq" style="background:var(--rent)"></i>${N.rent}</span>`;
+  document.getElementById('v-lg1').innerHTML = `<span><i class="sq" style="background:var(--van)"></i>${N.van}</span><span><i class="sq" style="background:var(--rent)"></i>${N.rent}</span><span><i class="sq" style="background:var(--buy)"></i>${N.buy}</span>`;
   const o=baseOpts(START_YEAR, START_YEAR+until/12, until>36?1:0.5);
   o.scales.x.ticks.callback=v2=>{const yr=Math.floor(v2+1e-6),mo=Math.round((v2-yr)*12);return mo===0?String(yr):new Date(yr,mo,1).toLocaleString('en-US',{month:'short'});};
   o.plugins.roadBand={from:START_YEAR,to:START_YEAR+v.roadM/12,color:css('--band'),text:css('--van')};
   chart('c-v-run',{type:'line',data:{datasets:[
     lineDS(N.van,css('--van'),v.all.slice(0,until+1).map(s=>({x:START_YEAR+s.m/12,y:B(p,s.liq,s.m)})),{fill:'origin',backgroundColor:grad(css('--van'),.22)}),
-    lineDS(N.rent,css('--rent'),r.all.slice(0,until+1).map(s=>({x:START_YEAR+s.m/12,y:B(p,s.liq,s.m)})),{borderDash:[5,4],borderWidth:1.75})]},options:o});
+    lineDS(N.rent,css('--rent'),r.all.slice(0,until+1).map(s=>({x:START_YEAR+s.m/12,y:B(p,s.liq,s.m)})),{borderDash:[5,4],borderWidth:1.75}),
+    lineDS(N.buy,css('--buy'),A.R.buy.all.slice(0,until+1).map(s=>({x:START_YEAR+s.m/12,y:B(p,s.liq,s.m)})),{borderDash:[2,3],borderWidth:1.75})]},options:o});
   const bud=[['Fuel',p.r_fuel,'r_fuel'],['Food + eating out',p.r_food,'r_food'],['Campsites + fun',p.r_fun,'r_fun'],['Health insurance',p.r_health,'r_health'],['Van insurance + repairs',p.r_van,'r_van'],['Storage + Starlink',p.r_misc,'r_misc']].sort((a,c)=>c[1]-a[1]).map(x=>[x[0],x[1],'in:'+x[2]]);
   if(v.vanPmt>0) bud.push(['Van loan payment',v.vanPmt,'vl']);
   document.getElementById('v-bud-sum').textContent = `${F$(A.vanBurn)}/mo net burn vs. ${F$(p.rent+livingOf(p))}/mo of rent and expenses now`;
