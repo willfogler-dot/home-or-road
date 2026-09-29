@@ -1149,7 +1149,7 @@ function run(kind, p){
     brok += r.bdd;
     if(r.bankNet>=0) cash+=r.bankNet; else spend(-r.bankNet);
     retire += r.contrib;
-    const tgt=Math.max(0,p.cashMonths??6)*(r.housing+r.living+r.road+r.vanLoan); r.sweep=0;
+    const tgt=Math.max(0,p.cashMonths??6)*(r.housing+r.living+r.road+r.vanLoan)/(m===0&&M0F<1?M0F:1); r.sweep=0;   // cushion = months of full-month spending, even in the prorated first month
     if(cash>tgt){ r.sweep=cash-tgt; cash-=r.sweep; brok+=r.sweep; }
     r.brokDraw=draw; r.invested=r.bdd+r.contrib; r.brokGrowth=brok*ri; r.retGrowth=retire*ri; r.cashGrowth=cash>0?cash*rc:0;
     cash *= cash>0?(1+rc):1; brok *= (1+ri); retire *= (1+ri);   // a negative brokerage balance = borrowing, charged at the investment return
