@@ -483,6 +483,20 @@ b.up{color:var(--pos)}
 .up-note b{color:var(--ink-2);font-weight:600}
 .upf{padding-top:14px}
 @media (max-width:720px){ .up-row{grid-template-columns:minmax(0,1fr) auto} .up-row .up-track{grid-column:1/-1;grid-row:2} .up-row .up-v{grid-row:1;grid-column:2} }
+/* lease timeline */
+.lt{display:grid;grid-template-columns:minmax(0,1fr) 26px minmax(0,1fr) 26px minmax(0,1.25fr);align-items:stretch;margin-top:10px}
+.lt-s{border:1px solid var(--line);border-radius:12px;padding:12px 14px 6px;background:var(--card-2);min-width:0;border-top:3px solid var(--line-2)}
+.lt-s.fut{border-top-color:var(--rent)}
+.lt-s .n{font-size:10.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.lt-s h4{margin:2px 0 0;font-family:var(--fd);font-size:14.5px;font-weight:600}
+.lt-s .d{font-size:12px;color:var(--ink-2);margin:2px 0 8px;font-variant-numeric:tabular-nums}
+.lt-r{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--grid);font-size:12.5px;min-width:0}
+.lt-r .l{color:var(--ink-2);min-width:0} .lt-r .l small{display:block;font-size:11px;color:var(--muted);line-height:1.3}
+.lt-r .v{font-weight:600;white-space:nowrap} .lt-r .v small{font-weight:400;color:var(--muted)}
+.lt-r .inp{width:150px;flex:none;height:32px}
+.lt-a{display:grid;place-items:center;color:var(--muted);font-size:15px}
+.lt-note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5}
+@media (max-width:980px){ .lt{grid-template-columns:1fr} .lt-a{height:22px;transform:rotate(90deg)} }
 /* show the math */
 .x{cursor:pointer;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,currentColor 45%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px;border-radius:4px;transition:background .12s,text-decoration-color .12s;outline-offset:2px}
 .x:hover,.x:focus-visible{background:var(--field);text-decoration-color:currentColor}
@@ -691,6 +705,7 @@ b.up{color:var(--pos)}
       <p class="lede">Click Edit on any section. Household sections have a column for Will and one for Megan and add them up. Every tab recalculates as you type.</p>
       <div class="hero-ctl"><button class="btn" id="reset">Reset to examples</button></div></header>
     <div id="in-sync"></div>
+    <div class="box" id="box-lease" style="margin-bottom:16px"></div>
     <div class="grid g2">
       <div class="grid" style="align-content:start">
         <div class="box" id="box-savings"></div>
@@ -814,17 +829,19 @@ const BOXES = {
     ['contrib','Retirement contributions',[24000,18000],'$yr','Including employer match'],
     ['raise','Annual raises',3,'%'],
   ]},
+  'box-lease': {title:'Lease timeline', stages:true, fields:[
+    ['rentNow','Rent',0,'$mo','0 = same as the house with a yard'],
+    ['leaseEnd','Lease ends','2026-12','ym','Last month of the lease'],
+    ['m2m','Months',3,'mo','0 = move straight from the lease'],
+    ['rentM2M','Rent',0,'$mo','0 = same as current rent'],
+    ['rent','Rent, today’s market',3400,'$mo','Denver single-family median is ~$2,900; west side with a yard runs higher'],
+    ['rentG','Increase per year',2,'%','Denver single-family rents are down ~3% YoY'],
+    ['rentBuyYears','Rent path buys after',0,'yr','0 = keep renting'],
+  ]},
   'box-exp': {title:'Monthly expenses', people:true, fields:[
-    ['rentNow','Current rent',0,'$mo','Your lease today'],
-    ['leaseEnd','Lease ends','2026-12','ym','Last month of the current lease'],
-    ['m2m','Month-to-month after the lease',3,'mo','Every path starts after this: rent moves, buy closes, van leaves'],
-    ['rentM2M','Month-to-month rent',0,'$mo','0 = same as current rent'],
-    ['rent','Future rent: house with a yard',[1700,1700],'$mo','Today’s market rent; Denver single-family median is ~$2,900, west side with a yard runs higher'],
     ['car','Cars',[450,450],'$mo','Payments, gas, maintenance'],
     ['ins','Insurance',[175,175],'$mo','Car, umbrella, anything not taken out of pay'],
     ['other','Other recurring',[3100,3100],'$mo','Groceries, dining, travel, subscriptions'],
-    ['rentG','Rent increase per year',2,'%','Denver rents are soft; single-family down ~3% YoY'],
-    ['rentBuyYears','Rent path: buy after',0,'yr','0 = keep renting'],
   ]},
   'box-buy': {title:'Buy a house', sq:'var(--buy)', fields:[
     ['price','Purchase price',850000,'$'],
@@ -1607,7 +1624,7 @@ const SUF={'$mo':'/mo','$yr':'/yr','%':'%','yr':' yrs','mo':' mo'};
 function show(id,v){ const u=UNIT[id];
   if(id==='rentBuyYears') return v>0?`Buy ${yrs(v)} after moving`:'Keep renting';
   if(u==='ym'){ const [y,mo]=String(v).split('-').map(Number); return y&&mo?new Date(y,mo-1,1).toLocaleString('en-US',{month:'short',year:'numeric'}):'–'; }
-  if((id==='rentNow'||id==='rentM2M') && !(v>0)) return `<small>${id==='rentNow'?'Same as yard-house rent':'Same as current rent'}</small>`;
+  if((id==='rentNow'||id==='rentM2M') && !(v>0)) return `<small>${id==='rentNow'?'Not set: using yard-house rent':'Same as current rent'}</small>`;
   if(u&&u.startsWith('$')) return `${F$(v)}${SUF[u]?`<small>${SUF[u]}</small>`:''}`;
   if(u==='yr') return `${grp(v)}<small>${v===1?' yr':' yrs'}</small>`;
   if(u==='mo') return `${grp(v)}<small> mo</small>`;
@@ -1622,16 +1639,31 @@ function headTotal(bid){
   const p=P;
   if(bid==='box-savings') return `Liquid <b>${F$(p.cash+p.brok)}</b> · Total <b>${F$(p.cash+p.brok+p.retire)}</b>`;
   if(bid==='box-income') return `Take-home <b>${F$(p.bank)}</b>/mo · Invested <b>${F$(p.bdd+p.contrib/12)}</b>/mo`;
-  if(bid==='box-exp') return `<b>${F$(p.rent+livingOf(p))}</b>/mo`;
+  if(bid==='box-exp') return `<b>${F$(livingOf(p))}</b>/mo plus housing`;
+  if(bid==='box-lease') return `Paths start <b id="lt-start">${mon(tIdx(p))}</b>`;
   if(bid==='box-road') return `Burn <b>${F$(roadBurn(p))}</b>/mo`;
   return '';
+}
+function leaseDates(){
+  const p=P, LE=leIdx(p), T=tIdx(p), set=(id,t)=>{ const e=document.getElementById(id); if(e) e.textContent=t; };
+  set('lt-d1', LE>0 ? `${mon(0)} – ${mon(LE-1)}` : 'Already over');
+  set('lt-d2', T>LE ? `${mon(LE)} – ${mon(T-1)} · ${T-LE} mo` : 'Skipped');
+  set('lt-d3', `From ${mon(T)}`); set('lt-start', mon(T)); set('lt-t', mon(T));
+}
+function leaseHTML(editing){
+  const row=id=>{ const fld=BOXES['box-lease'].fields.find(x=>x[0]===id); return `<div class="lt-r"><span class="l">${fld[1]}${editing&&fld[4]?`<small>${fld[4]}</small>`:''}</span>${editing?inpHTML(id,P[id]):`<span class="v">${show(id,P[id])}</span>`}</div>`; };
+  const st=(n,t,did,ids,cls)=>`<div class="lt-s ${cls||''}"><div class="n">${n}</div><h4>${t}</h4><div class="d" id="${did}"></div>${ids.map(row).join('')}</div>`;
+  const html=`<div class="lt">${st('Now','Current lease','lt-d1',['rentNow','leaseEnd'])}<div class="lt-a">→</div>${st('Then','Month-to-month','lt-d2',['m2m','rentM2M'])}<div class="lt-a">→</div>${st('Rent path','House with a yard','lt-d3',['rent','rentG','rentBuyYears'],'fut')}</div>
+    <div class="lt-note">All three paths share the first two stages. In <b id="lt-t"></b> Rent moves into the house with a yard, Buy closes, and Van leaves. After the road, the van path rents the house with a yard.</div>`;
+  setTimeout(leaseDates,0); return html;
 }
 function renderBox(bid){
   const b=BOXES[bid], el=document.getElementById(bid), editing=!!EDIT[bid];
   el.classList.toggle('editing',editing);
   const btns = READONLY ? '' : editing ? `<button class="btn" data-act="cancel">Cancel</button><button class="btn pri" data-act="save">Save</button>` : `<button class="btn" data-act="edit">Edit</button>`;
   let h=`<div class="box-h"><h3>${b.sq?`<i class="sq" style="background:${b.sq}"></i>`:''}${b.title}</h3><div class="right"><span class="tot" data-tot>${headTotal(bid)}</span>${btns}</div></div>`;
-  if(!editing){
+  if(b.stages){ h+=leaseHTML(editing); }
+  else if(!editing){
     h+=`<div class="vlist${b.people?' one':''}">`+b.fields.map(([id,l,d,u])=>{
       if(u==='sel') return `<div class="vrow"><span class="l">${l}</span><span class="v">${P.after==='buy'?'Buy the house':'Rent again'}</span></div>`;
       const split = b.people && P.pp[id] ? `<small>${PEOPLE[0]} ${F$(P.pp[id][0])} · ${PEOPLE[1]} ${F$(P.pp[id][1])}</small>` : '';
@@ -1664,7 +1696,7 @@ function renderBox(bid){
     const cur=()=> who!==undefined? P.pp[id][who] : P[id];
     const ym=UNIT[id]==='ym';
     inp.addEventListener('input',()=>{
-      if(ym){ if(/^\d{4}-\d{2}$/.test(inp.value)){ P[id]=inp.value; recomputeSoon(); } return; }
+      if(ym){ if(/^\d{4}-\d{2}$/.test(inp.value)){ P[id]=inp.value; leaseDates(); recomputeSoon(); } return; }
       const raw=inp.value.replace(/[^0-9.\-]/g,''); let n=parseFloat(raw);
       if(isNaN(n)){ if(who===undefined||raw!=='') return; n=0; }
       if(id==='horizon') n=Math.max(1,Math.min(30,Math.round(n)));
@@ -1672,6 +1704,7 @@ function renderBox(bid){
       if(who!==undefined){ P.pp[id][who]=n; P[id]=P.pp[id][0]+P.pp[id][1]; const s=el.querySelector(`[data-sum="${id}"]`); if(s) s.textContent=F$(P[id]); }
       else P[id]=n;
       const t=el.querySelector('[data-tot]'); if(t) t.innerHTML=headTotal(bid);
+      if(bid==='box-lease') leaseDates();
       recomputeSoon();
     });
     if(!ym){ inp.addEventListener('focus',()=>{ inp.value=String(cur()); inp.select(); });
