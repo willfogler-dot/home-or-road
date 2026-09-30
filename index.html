@@ -1906,7 +1906,7 @@ function renderVan(){
     <p><b>Re-entry pay is the lever.</b> Coming back at 100% instead of ${p.returnPct}% is worth ${M$(Math.abs(B(p,full.end.nw-v.end.nw,v.end.m)))} by ${E}. Staying employable matters more than trimming the road budget.</p>
     <p><b>Compounding.</b> Money not invested in the trip years never gets its ${H}-year run, so the gap keeps widening after you're back.</p>`;
   annualTable(document.getElementById('v-table'), v, [
-    ['Income',y=>y.income],['Road + van loan',y=>y.road],['Housing',y=>y.housing],['Cars, ins., other',y=>y.living],['Net income',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
+    ['Income',y=>y.income],[p.vanFin>0?'Road + van loan':'Road spending',y=>y.road],['Housing',y=>y.housing],['Cars, ins., other',y=>y.living],['Net income',y=>y.bankNet],['To brokerage',y=>y.toBrok],['To retirement',y=>y.contrib],
     ['Cash',y=>y.cash,'bal'],['Brokerage',y=>y.brok,'bal'],['Van (net)',y=>y.van,'bal'],...(p.after==='buy'?[['Home equity',y=>y.equity,'bal']]:[]),['Retirement',y=>y.retire,'bal'],['Net worth',y=>y.nw,'bal',1]]);
 }
 
@@ -2701,6 +2701,7 @@ const COLDEF = {
   'Mortgage P+I':'Principal and interest on the mortgage. Fixed for 30 years.',
   'Other home costs':'Property tax, homeowners insurance, maintenance, HOA, extra utilities and PMI.',
   'Road + van loan':'Road spending plus van loan payments.',
+  'Road spending':'What you spend on the road: fuel, food, campsites, health insurance, van upkeep and storage. No van loan: the van is paid in cash.',
 };
 
 /* ---- explanations: each returns {eb, t, v, sub, what, steps, table, notes, inputs} ---- */
